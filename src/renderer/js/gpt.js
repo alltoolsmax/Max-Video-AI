@@ -52,3 +52,67 @@ const GPT = (() => {
 
   return { load, keyModal, run, button, get info() { return info; } };
 })();
+
+/* Mô hình viết prompt chạy trên máy (Prompt VLM của engine) — dùng song song với ChatGPT, miễn phí, không cần mạng. */
+const LocalAI = (() => {
+  const ready = () => Boolean(App.connected && App.caps && App.caps.features && App.caps.features.enhance);
+  const oneLine = (t) => String(t || '').replace(/\s*\n+\s*/g, ' ').trim();
+
+  function parseJson(text) {
+    if (text && typeof text === 'object') return text;
+    const s = String(text || '').replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    try { return JSON.parse(s); } catch { /* thử lấy khối {...} */ }
+    const m = s.match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(m[0]); } catch { /* bỏ qua */ } }
+    throw new Error('AI trên máy trả lời không đúng định dạng — thử lại hoặc dùng ChatGPT.');
+  }
+
+  // task: video | image | lines | autopilot (cùng kết quả JSON như ChatGPT)
+  async function run(task, input, btn) {
+    if (!ready()) {
+      toast('AI viết prompt trên máy chưa sẵn sàng', { kind: 'err', sub: App.connected ? 'Mô hình đang được tải tự động — trong lúc chờ có thể dùng ChatGPT.' : 'Engine chưa chạy.' });
+      return null;
+    }
+    let old = null;
+    if (btn) { old = [...btn.childNodes]; btn.disabled = true; btn.innerHTML = ''; btn.append(icon('progress_activity', 'spin'), 'AI trên máy đang viết…'); }
+    try {
+      if (task === 'video') {
+        // Bộ viết prompt chuyên cho MiniMax H3 của engine, mỗi dòng 1 lượt
+        const jobs = [];
+        for (const line of input.lines || []) {
+          const r = await api('POST', '/jobs', { kind: 'enhance', text: line.slice(0, 12000), seconds: Number(input.seconds) || 10, label: 'Viết prompt: ' + labelFrom(line).slice(0, 90) });
+          jobs.push(r.job || r);
+        }
+        const lines = [];
+        for (const j of jobs) {
+          const done = await waitJob(j.id);
+          lines.push(oneLine((done.result && done.result.text) || ''));
+        }
+        return { lines: lines.filter(Boolean) };
+      }
+      const p = await window.fv.gpt.prompt(task, input);
+      const r = await api('POST', '/jobs', { kind: 'vlm', system: p.system.slice(0, 4000), questions: p.user.slice(0, 8000), format: 'json', max_tokens: 1500,
+        label: 'AI viết ' + ({ image: 'prompt ảnh', lines: 'kịch bản', autopilot: 'kịch bản Autopilot' }[task] || 'prompt') });
+      const done = await waitJob((r.job || r).id);
+      const answer = done.result && (done.result.answers || [])[0];
+      return parseJson(answer && answer.text !== undefined ? answer.text : answer);
+    } catch (e) { toastError(e, 'AI trên máy'); return null; }
+    finally { if (btn) { btn.disabled = false; btn.innerHTML = ''; btn.append(...old); } }
+  }
+
+  const button = (label, onClick, iconName = 'memory') => {
+    const b = h('button', { class: 'btn btn-text local-ai-btn', type: 'button', title: 'Chạy bằng mô hình AI trên máy — miễn phí, không cần mạng', onclick: () => onClick(b) }, icon(iconName, 'small'), label);
+    return b;
+  };
+  return { run, button, ready, oneLine };
+})();
+
+// Hàng nút viết prompt: AI trên máy | ChatGPT. actions: [{ label, icon, run(engine, btn) }]
+function aiWriterRow(actions) {
+  return h('div', { class: 'ai-row' },
+    h('span', { class: 'ai-tag local' }, icon('memory', 'small'), 'AI trên máy'),
+    ...actions.map((a) => LocalAI.button(a.label, (btn) => a.run(LocalAI, btn), a.icon)),
+    h('span', { class: 'ai-sep' }),
+    h('span', { class: 'gpt-pill', style: { marginLeft: 0 } }, icon('bolt', 'small'), 'ChatGPT'),
+    ...actions.map((a) => GPT.button(a.label, (btn) => a.run(GPT, btn), a.icon)));
+}

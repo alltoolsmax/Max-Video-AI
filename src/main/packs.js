@@ -8,7 +8,7 @@ const PACKS = [
   { id: 'image-h3', name: 'Tạo ảnh chất lượng cao', model: 'MiniMax H3 Image', use: 'Trang Tạo ảnh, tới 16 MP (Windows/Linux)' },
   { id: 'image-qwen', name: 'Tạo ảnh nhanh', model: 'Qwen Image 2.1 Turbo', use: 'Trang Tạo ảnh, sửa và ghép ảnh' },
   { id: 'segment', name: 'Chọn vùng / tách nền', model: 'SAM 2', use: 'Chọn vùng khi sửa ảnh theo lớp (sắp có)' },
-  { id: 'vlm', name: 'AI viết prompt', model: 'Prompt VLM', use: 'Nút “Viết lại bằng AI”, Autopilot tự chọn bản đẹp nhất' },
+  { id: 'vlm', name: 'AI viết prompt', model: 'Prompt VLM', use: 'Viết lại prompt, viết kịch bản (AI trên máy), Autopilot tự chọn bản đẹp nhất' },
   { id: 'dubbing', name: 'Lồng tiếng giữ giọng gốc', model: 'CosyVoice 3', use: 'Trang Lồng tiếng' },
   { id: 'subtitle', name: 'Phụ đề tự động', model: 'Nhận dạng giọng nói (sherpa-onnx)', use: 'Trang Phụ đề, Lồng tiếng' },
   { id: 'music', name: 'Nhạc nền AI', model: 'Gói nhạc', use: 'Nhạc nền cho phim (sắp có)' },

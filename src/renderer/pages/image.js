@@ -40,13 +40,13 @@ registerPage('image', (() => {
     left.append(h('div', { class: 'card' },
       h('div', { class: 'card-head' }, h('h2', {}, 'Mô tả ảnh')),
       h('div', { class: 'card-body' }, field(null, h('div', {}, prompt, counter), 'Viết tiếng Anh cho kết quả tốt nhất. Chữ muốn hiện trong ảnh đặt trong ngoặc kép.'),
-        h('div', { class: 'row', style: { gap: '6px' } }, GPT.button('Viết lại bằng ChatGPT', async (btn) => {
+        aiWriterRow([{ label: 'Viết lại', icon: 'auto_awesome', run: async (engine, btn) => {
           if (!state.prompt.trim()) { toast('Hãy viết vài ý tưởng trước', { kind: 'err' }); return; }
-          const r = await GPT.run('image', { text: state.prompt }, btn);
+          const r = await engine.run('image', { text: state.prompt }, btn);
           if (!r || !r.prompt) return;
-          state.prompt = String(r.prompt).slice(0, 2000); prompt.value = state.prompt; counter.textContent = state.prompt.length + ' / 2000'; update();
-          toast('ChatGPT đã viết lại mô tả', { kind: 'ok' });
-        })),
+          state.prompt = LocalAI.oneLine(r.prompt).slice(0, 2000); prompt.value = state.prompt; counter.textContent = state.prompt.length + ' / 2000'; update();
+          toast((engine === GPT ? 'ChatGPT' : 'AI trên máy') + ' đã viết lại mô tả', { kind: 'ok' });
+        } }]),
         field('Gợi ý nhanh', ideas))));
 
     els.inputs = h('div', { class: 'small-slots' });

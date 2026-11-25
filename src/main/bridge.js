@@ -7,7 +7,7 @@ const { Connection, normalizeUrl } = require('./freevideo');
 const { Device } = require('./device');
 const { Engine, legalTexts } = require('./engine');
 const { Updater } = require('./updater');
-const { Gpt } = require('./gpt');
+const { Gpt, SYSTEM: AI_SYSTEM, userText: aiUserText } = require('./gpt');
 const PKG = require('../../package.json');
 
 const MEDIA_EXT = {
@@ -206,6 +206,8 @@ class Bridge {
           }
           return out;
         });
+      case 'ai:prompt':   // lời nhắn cho mô hình viết prompt trên máy — dùng chung hướng dẫn với ChatGPT
+        return { system: AI_SYSTEM[args.task] || '', user: aiUserText(args.task, args.input || {}) };
       case 'gpt:info':
         return this.gpt.info();
       case 'gpt:set':

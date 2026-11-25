@@ -27,6 +27,13 @@ Use ONLY the character names given (if none are given, invent at most 3 and use 
 (Vietnamese if the user wrote Vietnamese). Write exactly the requested number of shots.`,
 };
 
+function userText(task, input = {}) {
+  if (task === 'video') return 'Input lines:\n' + (input.lines || []).map((l, i) => `${i + 1}. ${l}`).join('\n') + (input.seconds ? `\nEach clip is about ${input.seconds} seconds.` : '');
+  if (task === 'image') return String(input.text || '');
+  if (task === 'lines') return `Story idea: ${input.idea}\nNumber of shots: ${input.count}\nEach shot about ${input.seconds || 10} seconds.`;
+  return `Story idea: ${input.idea}\nNumber of shots: ${input.count}\nCharacters: ${(input.characters || []).join(', ') || '(none given)'}`;
+}
+
 class Gpt {
   constructor({ settings, save }) { this.settings = settings; this.save = save; }
   get cfg() { return (this.settings.gpt ||= {}); }
@@ -94,11 +101,7 @@ class Gpt {
   async run(task, input = {}) {
     const system = SYSTEM[task];
     if (!system) throw new Error('Không rõ việc cần ChatGPT làm.');
-    let user;
-    if (task === 'video') user = 'Input lines:\n' + (input.lines || []).map((l, i) => `${i + 1}. ${l}`).join('\n') + (input.seconds ? `\nEach clip is about ${input.seconds} seconds.` : '');
-    else if (task === 'image') user = String(input.text || '');
-    else if (task === 'lines') user = `Story idea: ${input.idea}\nNumber of shots: ${input.count}\nEach shot about ${input.seconds || 10} seconds.`;
-    else user = `Story idea: ${input.idea}\nNumber of shots: ${input.count}\nCharacters: ${(input.characters || []).join(', ') || '(none given)'}`;
+    const user = userText(task, input);
     const data = await this.request('/chat/completions', {
       model: this.cfg.model || DEFAULT_MODEL, response_format: { type: 'json_object' },
       messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
@@ -110,4 +113,4 @@ class Gpt {
   }
 }
 
-module.exports = { Gpt };
+module.exports = { Gpt, SYSTEM, userText };

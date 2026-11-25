@@ -36,7 +36,11 @@ registerPage('video', (() => {
   const promptLines = () => state.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   function composedPrompt() { return promptLines()[0] || ''; }
 
+  // Prompt đầy đủ của MiniMax H3 bị gộp thành 1 dòng → tách lại các phần (âm thanh, nhạc) như định dạng gốc
+  const h3Format = (line) => line.replace(/\s+(overall_soundscape|non_diegetic_music|integrated_multimodal_description):/g, '\n\n$1:').trim();
+
   function buildSpec(prompt = composedPrompt()) {
+    prompt = h3Format(prompt);
     const spec = { kind: 'generate', prompt, aspect: state.aspect, seconds: Number(state.seconds), quality: state.quality };
     spec.label = labelFrom(prompt) || undefined;
     if (!state.seedRandom) spec.seed = Number(state.seed) || 0;
@@ -162,10 +166,8 @@ registerPage('video', (() => {
       state.text = state.text.trim() ? state.text.replace(/\s*$/, '') + '\n' + line : line;
       ta.value = state.text; countLines(); schedulePlan();
     } }, icon('lightbulb', 'small'), idea.label)));
-    const rewrite = GPT.button('Viết lại bằng ChatGPT', rewriteWithGpt);
-    const script = GPT.button('Viết kịch bản bằng ChatGPT', scriptWithGpt, 'movie_edit');
     body.append(field(null, ta, 'Viết tiếng Anh cho kết quả tốt nhất; lời thoại có thể để tiếng Việt trong ngoặc kép. Dán nhiều dòng để tạo hàng loạt.'),
-      h('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap' } }, h('span', { class: 'gpt-pill', style: { marginLeft: 0 } }, icon('bolt', 'small'), 'ChatGPT'), rewrite, script),
+      aiWriterRow([{ label: 'Viết lại', icon: 'auto_awesome', run: rewriteWith }, { label: 'Viết kịch bản', icon: 'movie_edit', run: (engine) => scriptWith(engine) }]),
       field('Gợi ý nhanh', ideas));
     countLines();
     setTimeout(() => ta.focus(), 0);
@@ -177,29 +179,30 @@ registerPage('video', (() => {
     if (els.genLabel) els.genLabel.textContent = n > 1 ? 'Tạo ' + n + ' video' : 'Tạo video';
   }
 
-  async function rewriteWithGpt(btn) {
+  const who = (engine) => (engine === GPT ? 'ChatGPT' : 'AI trên máy');
+  async function rewriteWith(engine, btn) {
     const lines = promptLines();
-    if (!lines.length) { toast('Hãy viết vài ý tưởng trước (mỗi dòng 1 video), ChatGPT sẽ viết lại chi tiết', { kind: 'err' }); return; }
-    const r = await GPT.run('video', { lines, seconds: Number(state.seconds) }, btn);
+    if (!lines.length) { toast('Hãy viết vài ý tưởng trước (mỗi dòng 1 video), AI sẽ viết lại chi tiết', { kind: 'err' }); return; }
+    const r = await engine.run('video', { lines, seconds: Number(state.seconds) }, btn);
     if (!r || !Array.isArray(r.lines)) return;
     state.text = r.lines.map((l) => String(l).replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).join('\n');
     renderPromptBody(); schedulePlan();
-    toast('ChatGPT đã viết lại ' + r.lines.length + ' prompt — sửa thêm nếu muốn rồi bấm Tạo', { kind: 'ok' });
+    toast(who(engine) + ' đã viết lại ' + r.lines.length + ' prompt — sửa thêm nếu muốn rồi bấm Tạo', { kind: 'ok' });
   }
-  function scriptWithGpt() {
+  function scriptWith(engine) {
     const idea = h('textarea', { class: 'textarea', rows: 4, placeholder: 'Ví dụ: Một cô gái bán cà phê ở Hội An gặp lại người bạn cũ dưới mưa, kết thúc ấm áp.' });
     const count = slider({ min: 1, max: 20, value: 4, suffix: 'cảnh', onChange: () => {} });
     const go = h('button', { class: 'btn btn-primary', onclick: async () => {
       if (!idea.value.trim()) { idea.focus(); return; }
       const n = Number(count.querySelector('input[type=range]').value);
-      const r = await GPT.run('lines', { idea: idea.value.trim(), count: n, seconds: Number(state.seconds) }, go);
+      const r = await engine.run('lines', { idea: idea.value.trim(), count: n, seconds: Number(state.seconds) }, go);
       if (!r || !Array.isArray(r.lines)) return;
       closeModal();
       state.text = r.lines.map((l) => String(l).replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).join('\n');
       renderPromptBody(); schedulePlan();
-      toast('ChatGPT đã viết ' + r.lines.length + ' cảnh — mỗi dòng 1 video', { kind: 'ok' });
+      toast(who(engine) + ' đã viết ' + r.lines.length + ' cảnh — mỗi dòng 1 video', { kind: 'ok' });
     } }, icon('movie_edit'), 'Viết kịch bản');
-    openModal([modalHead('Viết kịch bản bằng ChatGPT', 'movie_edit'), field('Ý tưởng câu chuyện', idea, 'Viết tiếng Việt cũng được. Lời thoại sẽ giữ tiếng Việt.'),
+    openModal([modalHead('Viết kịch bản bằng ' + who(engine), engine === GPT ? 'bolt' : 'memory'), field('Ý tưởng câu chuyện', idea, 'Viết tiếng Việt cũng được. Lời thoại sẽ giữ tiếng Việt.'),
       field('Số cảnh (mỗi cảnh 1 video)', count), h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: closeModal }, 'Huỷ'), go)]);
     setTimeout(() => idea.focus(), 0);
   }

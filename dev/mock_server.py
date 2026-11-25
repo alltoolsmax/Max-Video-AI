@@ -226,6 +226,16 @@ def worker():
             elif row['kind'] == 'export':
                 item = add_library('sea', 'Exported project ' + spec.get('editor_project', ''))
                 row['result'] = dict(video=library_view(item), library_id=item['id'], width=item['width'], height=item['height'], seconds=4.0)
+            elif row['kind'] == 'vlm':
+                sysmsg = spec.get('system', '')
+                if '"shots"' in sysmsg:
+                    ans = dict(title='Hẹn dưới mưa', style='soft cinematic', shots=[dict(action='Lan stands under a bus stop roof in heavy rain.', seconds=7, camera='wide', cast=['Lan'], lines=[]),
+                               dict(action='Minh runs in and smiles at Lan.', seconds=9, camera='medium two-shot', cast=['Lan', 'Minh'], lines=[dict(who='Minh', line='Chào em!')])])
+                elif '"prompt"' in sysmsg:
+                    ans = dict(prompt='Local AI: cozy cafe interior, warm window light, 35mm film photo.')
+                else:
+                    ans = dict(lines=['Local AI shot %d: rainy Hoi An street at dusk, lanterns, slow pan.' % (i + 1) for i in range(3)])
+                row['result'] = dict(answers=['```json\n' + json.dumps(ans, ensure_ascii=False) + '\n```'])
             elif row['kind'] == 'enhance':
                 row['result'] = dict(text='integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames '
                                      + spec.get('text', '').strip().split('\n')[0] + ' The camera pushes in slowly with small amplitude; soft '

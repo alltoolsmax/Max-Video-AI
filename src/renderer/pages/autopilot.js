@@ -148,7 +148,7 @@ registerPage('autopilot', (() => {
     };
     drawShots();
     left.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('view_carousel'), h('h2', {}, 'Các cảnh'), h('span', { class: 'hint' }, 'mỗi cảnh 4–15 giây'),
-      h('div', { class: 'grow' }), GPT.button('Viết kịch bản bằng ChatGPT', scriptWithGpt, 'movie_edit')),
+      h('div', { class: 'grow' }), LocalAI.button('Viết kịch bản bằng AI trên máy', () => scriptWith(LocalAI), 'memory'), GPT.button('Viết kịch bản bằng ChatGPT', () => scriptWith(GPT), 'movie_edit')),
       h('div', { class: 'card-body' }, shotsBox)));
 
     // Cột phải: số bản, ước tính, bắt đầu
@@ -165,13 +165,14 @@ registerPage('autopilot', (() => {
   }
 
   // ChatGPT viết sẵn các cảnh (hành động, thời lượng, góc máy, ai xuất hiện, lời thoại) từ 1 ý tưởng
-  function scriptWithGpt() {
+  function scriptWith(engine) {
+    const who = engine === GPT ? 'ChatGPT' : 'AI trên máy';
     const idea = h('textarea', { class: 'textarea', rows: 4, placeholder: 'Ví dụ: Lan và Minh gặp nhau ở trạm xe buýt dưới mưa, cùng che chung ô, kết thúc ấm áp.' });
     const count = slider({ min: 1, max: 20, value: Math.max(3, film.shots.filter((x) => x.action.trim()).length || 4), suffix: 'cảnh', onChange: () => {} });
     const go = h('button', { class: 'btn btn-primary', onclick: async () => {
       if (!idea.value.trim()) { idea.focus(); return; }
       const n = Number(count.querySelector('input[type=range]').value);
-      const r = await GPT.run('autopilot', { idea: idea.value.trim(), count: n, characters: film.characters.map((c) => c.key) }, go);
+      const r = await engine.run('autopilot', { idea: idea.value.trim(), count: n, characters: film.characters.map((c) => c.key) }, go);
       if (!r || !Array.isArray(r.shots) || !r.shots.length) return;
       closeModal();
       const f = film;
@@ -184,10 +185,10 @@ registerPage('autopilot', (() => {
       f.shots = r.shots.slice(0, 40).map((x) => ({ action: String(x.action || '').trim(), seconds: Math.min(15, Math.max(4, Math.round(Number(x.seconds) || 10))),
         camera: String(x.camera || ''), cast: names(x.cast), continue: false,
         lines: (x.lines || []).filter((l) => l && l.who && l.line).map((l) => ({ who: String(l.who).slice(0, 40), line: String(l.line) })) }));
-      toast('ChatGPT đã viết ' + f.shots.length + ' cảnh — xem lại rồi bấm Bắt đầu Autopilot', { kind: 'ok' });
+      toast(who + ' đã viết ' + f.shots.length + ' cảnh — xem lại rồi bấm Bắt đầu Autopilot', { kind: 'ok' });
       draw();
     } }, icon('movie_edit'), 'Viết kịch bản');
-    openModal([modalHead('Viết kịch bản bằng ChatGPT', 'movie_edit'), field('Ý tưởng câu chuyện', idea, 'Viết tiếng Việt cũng được; lời thoại giữ tiếng Việt. Nhân vật đã chọn sẽ được dùng trong kịch bản.'),
+    openModal([modalHead('Viết kịch bản bằng ' + who, engine === GPT ? 'bolt' : 'memory'), field('Ý tưởng câu chuyện', idea, 'Viết tiếng Việt cũng được; lời thoại giữ tiếng Việt. Nhân vật đã chọn sẽ được dùng trong kịch bản.'),
       field('Số cảnh', count), h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: closeModal }, 'Huỷ'), go)]);
     setTimeout(() => idea.focus(), 0);
   }

@@ -25,7 +25,7 @@
     deleteLibrary: (ids) => call('library:delete', { ids }),
     quit: () => call('app:quit'),
     guides: () => call('guides'),
-    gpt: { info: () => call('gpt:info'), set: (key, model) => call('gpt:set', { key, model }), test: (key) => call('gpt:test', { key }), run: (task, input) => call('gpt:run', { task, input }) },
+    gpt: { info: () => call('gpt:info'), set: (key, model) => call('gpt:set', { key, model }), test: (key) => call('gpt:test', { key }), run: (task, input) => call('gpt:run', { task, input }), prompt: (task, input) => call('ai:prompt', { task, input }) },
     engine: {
       status: () => call('engine:status'), pickRoot: () => call('engine:pickRoot'), useDefault: () => call('engine:useDefault'),
       pickModels: () => call('engine:pickModels'), plan: (o) => call('engine:plan', o), install: (o) => call('engine:install', o),

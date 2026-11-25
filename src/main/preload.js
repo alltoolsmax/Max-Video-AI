@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('fv', {
     set: (key, model) => call('gpt:set', { key, model }),
     test: (key) => call('gpt:test', { key }),
     run: (task, input) => call('gpt:run', { task, input }),
+    prompt: (task, input) => call('ai:prompt', { task, input }),
   },
   engine: {
     status: () => call('engine:status'),
