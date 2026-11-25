@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dev/mock_data/
+dev/mock_root/
+hosting/upload/
+hosting/.maxai_seed.hex
+hosting/_test/

@@ -1,0 +1,50 @@
+{
+  "name": "max-ai",
+  "productName": "Max AI",
+  "version": "1.0.0",
+  "description": "Max AI by Mr. Huỳnh — tạo video & ảnh AI bằng engine FreeVideo (MiniMax H3) chạy trên máy của bạn",
+  "main": "src/main/main.js",
+  "author": "Mr. Huỳnh",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "mock": "python3 dev/mock_server.py",
+    "harness": "node dev/harness.js",
+    "hosting": "node tools/prepare-hosting.js",
+    "dist": "electron-builder --win nsis --x64",
+    "dist:mac": "electron-builder --mac dmg --x64 --arm64",
+    "dist:linux": "electron-builder --linux AppImage"
+  },
+  "dependencies": {
+    "@fontsource/roboto": "^5.3.0",
+    "material-symbols": "^0.49.0"
+  },
+  "devDependencies": {
+    "electron": "^45.5.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "net.mrhuynh.maxai",
+    "productName": "Max AI",
+    "directories": { "output": "dist" },
+    "files": ["src/**/*", "assets/**/*", "package.json"],
+    "win": { "icon": "assets/icon.ico", "target": ["nsis"] },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Max AI",
+      "artifactName": "MaxAI-Setup-${version}.exe",
+      "installerIcon": "assets/icon.ico"
+    },
+    "mac": {
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.video",
+      "identity": null,
+      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }]
+    },
+    "dmg": { "title": "Max AI", "artifactName": "MaxAI-${version}-${arch}.dmg" },
+    "linux": { "icon": "assets/icon.png", "target": "AppImage", "category": "Video", "artifactName": "MaxAI-${version}.AppImage" }
+  }
+}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: fvmedia: https:; media-src 'self' blob: fvmedia:; connect-src 'self' fvmedia:">
+  <title>Max AI by Mr. Huỳnh</title>
+  <link rel="stylesheet" href="../../node_modules/@fontsource/roboto/400.css">
+  <link rel="stylesheet" href="../../node_modules/@fontsource/roboto/500.css">
+  <link rel="stylesheet" href="../../node_modules/@fontsource/roboto/700.css">
+  <link rel="stylesheet" href="../../node_modules/material-symbols/rounded.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar" id="sidenav">
+    <div class="brand">
+      <img class="brand-logo" src="../../assets/icon.png" alt="">
+      <div><b>Max AI</b><small>by Mr. Huỳnh</small></div>
+      <button class="author-pic" id="authorBtn" title="Mr. Huỳnh — Thông tin ứng dụng">
+        <img src="../../assets/author-full.png" alt="Mr. Huỳnh">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <defs><linearGradient id="cometGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="#7dd3fc"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs>
+          <circle class="ring-glow" cx="49.76" cy="50.56" r="48.2" pathLength="100"/>
+          <circle class="comet c1" cx="49.76" cy="50.56" r="48.2" pathLength="100"/>
+          <circle class="comet c2" cx="49.76" cy="50.56" r="48.2" pathLength="100"/>
+          <circle class="spark" cx="49.76" cy="50.56" r="48.2" pathLength="100"/>
+        </svg>
+      </button>
+    </div>
+    <nav class="nav">
+      <a class="nav-item" data-route="video"><span class="ms">movie</span><span>Tạo video</span></a>
+      <a class="nav-item" data-route="image"><span class="ms">image</span><span>Tạo ảnh</span></a>
+      <a class="nav-item" data-route="queue"><span class="ms">pending_actions</span><span>Hàng đợi</span><span class="nav-count hidden" id="nav-queue-count"></span></a>
+      <a class="nav-item" data-route="library"><span class="ms">video_library</span><span>Thư viện</span></a>
+      <a class="nav-item" data-route="settings"><span class="ms">settings</span><span>Cài đặt</span></a>
+    </nav>
+    <div class="side-section">Sắp có</div>
+    <nav class="nav">
+      <a class="nav-item soon" data-route="soon/timeline"><span class="ms">view_timeline</span><span>Dựng timeline</span></a>
+      <a class="nav-item soon" data-route="soon/image-edit"><span class="ms">auto_fix_high</span><span>Sửa ảnh</span></a>
+      <a class="nav-item soon" data-route="soon/cast"><span class="ms">groups</span><span>Nhân vật</span></a>
+      <a class="nav-item soon" data-route="soon/autopilot"><span class="ms">smart_toy</span><span>Autopilot</span></a>
+      <a class="nav-item soon" data-route="soon/dubbing"><span class="ms">record_voice_over</span><span>Lồng tiếng</span></a>
+      <a class="nav-item soon" data-route="soon/subtitles"><span class="ms">subtitles</span><span>Phụ đề</span></a>
+    </nav>
+    <div class="nav-spacer"></div>
+    <div class="plan-card" id="planCard" title="Bản quyền Max AI"></div>
+    <button class="guide-btn" id="guideBtn"><span class="ms small">play_circle</span><span>Xem hướng dẫn</span></button>
+    <button class="about-btn" id="aboutBtn"><span class="ms small">info</span><span>Thông tin ứng dụng</span></button>
+  </aside>
+
+  <main>
+    <div class="titlebar">
+      <button class="icon-btn" id="nav-toggle" title="Thu gọn menu"><span class="ms">menu</span></button>
+      <h1 id="pageTitle">Tạo video</h1><span class="sep"></span><div class="ticker" id="ticker"></div>
+      <div class="spacer"></div>
+      <button class="update-pill hidden" id="updatePill"><span class="ms small">system_update</span><span>Có bản mới</span></button>
+      <button class="conn-chip" id="conn-chip" title="Kết nối tới FreeVideo"><span class="dot"></span><span class="conn-text">Đang kết nối…</span></button>
+      <button class="explore-btn" id="exploreBtn" title="Khám phá tiện ích AI khác của Mr. Huỳnh"><span class="ms">auto_awesome</span><span>Khám phá tiện ích AI khác</span></button>
+      <button class="icon-btn" id="queue-btn" title="Hàng đợi"><span class="ms">pending_actions</span><span class="badge hidden" id="queue-badge">0</span></button>
+      <button class="icon-btn" id="theme-btn" title="Đổi giao diện sáng/tối"><span class="ms">light_mode</span></button>
+    </div>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="drawer-scrim hidden" id="drawer-scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="modal-bg" id="modal"></div>
+
+<script src="js/core.js"></script>
+<script src="js/widgets.js"></script>
+<script src="js/license.js"></script>
+<script src="pages/video.js"></script>
+<script src="pages/image.js"></script>
+<script src="pages/queue.js"></script>
+<script src="pages/library.js"></script>
+<script src="pages/settings.js"></script>
+<script src="pages/soon.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
