@@ -12,7 +12,12 @@ const Eng = { st: null };
 // Dịch các lỗi hay gặp của trình cài engine sang tiếng Việt (giữ nguyên câu gốc nếu không nhận ra).
 function viEngineError(t) {
   if (!t) return t;
-  return String(t)
+  t = String(t);
+  const paused = t.match(/Model download paused: (\S+) \(/);
+  if (paused) return `Tải mô hình ${paused[1]} bị gián đoạn (mạng chập chờn hoặc app bị tắt giữa chừng). Bấm "Cài tiếp" để tải tiếp — phần đã tải được giữ lại.`;
+  // Bỏ phần "Full step output" (rất dài, toàn JSON); log đầy đủ vẫn nằm ở đường dẫn "Retained step log".
+  t = t.replace(/\n?\s*Full step output:[\s\S]*$/, '').replace(/Retained step log: /, 'Log chi tiết: ').replace(/RuntimeError: Failed step: (\S+) \(exit code (\d+)\)/, 'Bước "$1" bị lỗi (mã $2).');
+  return t
     .replace(/Insufficient disk space: need ([\d.]+) GiB, available ([\d.]+) GiB, short ([\d.]+) GiB/g, 'Ổ đĩa không đủ chỗ: cần $1 GB, còn $2 GB, thiếu $3 GB — hãy chọn thư mục ở ổ khác')
     .replace(/GPU detection failed\./g, 'Không nhận được card đồ họa NVIDIA.')
     .replace(/Install NVIDIA driver (\d+)\+ and restart before setup\./g, 'Hãy cài driver NVIDIA bản $1 trở lên rồi khởi động lại máy.')

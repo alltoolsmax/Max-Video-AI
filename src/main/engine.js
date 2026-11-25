@@ -213,7 +213,9 @@ class Engine {
   }
 
   installArgs(o) {
-    const a = [];
+    // File tải dở mà nguồn không cho tải tiếp (vd. Xet của HuggingFace) → cho phép tải lại file đó từ đầu,
+    // thay vì dừng hẳn và bắt người dùng làm gì thêm.
+    const a = ['--allow-model-restart'];
     if (o.imageModel) a.push('--image-model');
     if (o.reuseModels) a.push('--reuse-models', o.reuseModels);
     if (o.allQualities === false) a.push('--no-sampling-caches');
@@ -239,6 +241,7 @@ class Engine {
         throw new Error(failure || `Cài đặt dừng (mã ${code}). Bấm "Cài tiếp" để chạy lại — file đã tải được giữ lại.`);
       }
       this.progress = null;
+      cleanRetained(path.join(this.root, 'models'));
       this.setPhase('installed');
       return this.status();
     } catch (e) {
@@ -502,6 +505,18 @@ function summarizePlan(p) {
     steps: (p.steps || []).map(brand), licenses: p.licenses || [], errors: (p.errors || []).map(brand), warnings: (p.warnings || []).map(brand),
     engineVersion: p.engine_version || '', root: p.root,
   };
+}
+
+// Dọn các mảnh tải dở cũ mà trình cài giữ lại khi phải tải lại từ đầu (*.restart-approved-<số>), chỉ sau khi cài xong.
+function cleanRetained(dir, depth = 0) {
+  if (depth > 6) return;
+  let list = [];
+  try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const d of list) {
+    const p = path.join(dir, d.name);
+    if (d.isDirectory()) cleanRetained(p, depth + 1);
+    else if (/\.restart-approved-\d+$/.test(d.name)) { try { fs.rmSync(p, { force: true }); } catch {} }
+  }
 }
 
 module.exports = { Engine, ENGINE, summarizePlan };
