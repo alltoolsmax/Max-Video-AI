@@ -132,7 +132,7 @@ registerPage('video', (() => {
     left.append(h('details', { class: 'card' },
       h('summary', { class: 'card-head' }, icon('science'), h('h2', {}, 'Nâng cao'), h('div', { class: 'grow' }), icon('expand_more', 'chev')),
       h('div', { class: 'card-body' },
-        field(h('span', {}, 'Số bản tạo cùng lúc', proLock()), takes, 'Mỗi bản dùng seed khác nhau để bạn chọn bản đẹp nhất.'),
+        field('Số bản tạo cùng lúc', takes, 'Mỗi bản dùng seed khác nhau để bạn chọn bản đẹp nhất.'),
         field('Seed', h('div', { class: 'row' },
           switchToggle('Ngẫu nhiên', null, state.seedRandom, (v) => { state.seedRandom = v; seedInput.disabled = v; schedulePlan(); }), seedInput),
           'Giữ cùng seed + cùng prompt để tạo lại đúng kết quả.'),
@@ -305,7 +305,6 @@ registerPage('video', (() => {
   async function submit() {
     const spec = buildSpec();
     if (!spec.prompt) { toast('Hãy nhập mô tả video', { kind: 'err' }); return; }
-    if (!allowSubmit({ count: state.takes })) return;
     els.generateBtn.disabled = true;
     try {
       const reply = await api('POST', '/jobs', spec);

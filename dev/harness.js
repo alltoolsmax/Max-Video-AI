@@ -21,7 +21,7 @@ const bridge = new Bridge({
   quit: () => console.log('[harness] app sẽ thoát để cài bản cập nhật'),
   dialogs: {
     openExternal: async (url) => console.log('[harness] mở liên kết:', url),
-    pickFolder: async () => path.join(__dirname),
+    pickFolder: async () => process.env.HARNESS_PICK_FOLDER || path.join(__dirname),
     pickFiles: async () => [path.join(__dirname, 'mock_data', 'samples', 'image.png')],
     saveFile: async (name) => path.join(os.tmpdir(), name),
   },

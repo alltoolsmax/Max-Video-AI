@@ -1,0 +1,486 @@
+'use strict';
+// Engine AI chạy NGAY TRÊN MÁY của khách — giống FreeVideo: tải mã nguồn engine FreeVideo (Apache-2.0),
+// dùng chính trình cài của FreeVideo để kiểm tra máy, tải môi trường + mô hình MiniMax H3, rồi bật ComfyUI ngầm.
+//
+//  Bước 1  tải mã nguồn engine (bản đã thử, ENGINE.tag) vào <thư mục cài>/FreeVideo
+//  Bước 2  kiểm tra máy: `freevideo setup --plan --json`  (GPU, VRAM, RAM, ổ đĩa, dung lượng tải)
+//  Bước 3  cài: `freevideo setup --yes --accept-model-license` (tải tiếp được nếu đứt mạng; file đã tải được giữ lại)
+//  Bước 4  bật engine: engine_host.py (chạy bằng Python của engine) cài ComfyUI nếu thiếu rồi mở ComfyUI ở 127.0.0.1
+// Giao diện Max AI nói chuyện với engine qua API cục bộ /freevideo/agent/v1 (token trong <thư mục cài>/agent/token).
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn, execFile } = require('child_process');
+
+const ENGINE = {
+  tag: 'v0.6.11',                                     // bản engine FreeVideo Max AI đã gắn; đổi khi muốn nâng engine
+  repo: 'FlashML-org/FreeVideo',
+  uvVersion: '0.9.0',
+  python: '3.12.3',
+};
+const IS_WIN = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
+const MAX_LOG = 400;
+
+class Engine {
+  constructor({ settings, save, emit }) {
+    this.settings = settings;          // tham chiếu tới settings của Bridge (settings.engine = { root, autostart })
+    this.saveSettings = save;
+    this.emit = emit || (() => {});
+    this.task = null;                  // { kind, child, cancelled }
+    this.host = null;                  // tiến trình engine_host đang chạy ComfyUI
+    this.state = { phase: 'idle' };
+    this.progress = null;
+    this.log = [];
+    this.lastPlan = null;
+    this.url = null;
+  }
+
+  get cfg() { return (this.settings.engine ||= {}); }
+  get root() { return this.cfg.root || null; }
+  get src() { return this.root ? path.join(this.root, 'FreeVideo') : null; }
+
+  defaultRoot() {
+    // Ổ có nhiều chỗ trống nhất trên Windows (mô hình ~60 GB), còn lại thư mục người dùng.
+    if (IS_WIN) {
+      let best = { dir: path.join(process.env.LOCALAPPDATA || os.homedir(), 'MaxAI-Engine'), free: freeBytes(process.env.SystemDrive || 'C:\\') };
+      for (const d of 'DEFGH') {
+        const drive = d + ':\\';
+        if (!fs.existsSync(drive)) continue;
+        const free = freeBytes(drive);
+        if (free > best.free) best = { dir: path.join(drive, 'MaxAI-Engine'), free };
+      }
+      return best.dir;
+    }
+    return path.join(os.homedir(), IS_MAC ? 'Library/Application Support/MaxAI-Engine' : 'MaxAI-Engine');
+  }
+
+  setRoot(dir) {
+    this.cfg.root = path.resolve(dir);
+    this.saveSettings();
+    return this.status();
+  }
+
+  sourceInfo() {
+    try { return JSON.parse(fs.readFileSync(path.join(this.src, '.maxai-engine.json'), 'utf8')); } catch { return null; }
+  }
+
+  machine() {
+    try {
+      const m = JSON.parse(fs.readFileSync(path.join(this.root, 'machine.json'), 'utf8'));
+      return m && m.ready ? m : null;
+    } catch { return null; }
+  }
+
+  status() {
+    const root = this.root || this.defaultRoot();
+    const machine = this.root ? this.machine() : null;
+    const src = this.root ? this.sourceInfo() : null;
+    let disk = null;
+    try { disk = freeBytes(existingParent(root)); } catch { /* bỏ qua */ }
+    return {
+      supported: IS_WIN || IS_MAC || process.platform === 'linux',
+      platform: process.platform, root, rootChosen: Boolean(this.root), freeBytes: disk,
+      engineTag: ENGINE.tag, source: src, sourceReady: Boolean(src && fs.existsSync(path.join(this.src, 'freevideo_engine'))),
+      installed: Boolean(machine),
+      machine: machine ? { gpu: machine.gpu_name || (machine.hardware && machine.hardware.gpu_name) || '', backend: machine.device_backend || 'cuda',
+        vram_gib: machine.vram_gib, ram_gib: machine.ram_gib, format: machine.prepared_format || '' } : null,
+      phase: this.state.phase, error: this.state.error || null, task: this.task ? this.task.kind : null,
+      progress: this.progress, url: this.url, autostart: this.cfg.autostart !== false,
+      log: this.log.slice(-60), plan: this.lastPlan,
+    };
+  }
+
+  setPhase(phase, extra = {}) {
+    this.state = { phase, ...extra };
+    this.emit('engine:status', this.status());
+  }
+
+  addLog(line) {
+    const text = String(line).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').trimEnd();
+    if (!text) return;
+    this.log.push(text);
+    if (this.log.length > MAX_LOG) this.log.splice(0, this.log.length - MAX_LOG);
+  }
+
+  // ---------------- Bước 1: mã nguồn engine
+  async ensureSource() {
+    if (!this.root) throw new Error('Chưa chọn thư mục cài engine');
+    const info = this.sourceInfo();
+    if (info && info.tag === ENGINE.tag && fs.existsSync(path.join(this.src, 'freevideo_engine'))) return info;
+    fs.mkdirSync(this.root, { recursive: true });
+    const local = process.env.MAXAI_ENGINE_SOURCE;           // kiểm thử: chép từ một bản FreeVideo có sẵn
+    const tmp = path.join(this.root, '.maxai', 'download');
+    fs.mkdirSync(tmp, { recursive: true });
+    const staging = path.join(this.root, '.maxai', 'source-new');
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.mkdirSync(staging, { recursive: true });
+    if (local) {
+      fs.cpSync(local, staging, { recursive: true, filter: (p) => !p.includes(`${path.sep}.git`) });
+    } else {
+      const url = `https://github.com/${ENGINE.repo}/archive/refs/tags/${ENGINE.tag}.tar.gz`;
+      const file = path.join(tmp, `FreeVideo-${ENGINE.tag}.tar.gz`);
+      await download(url, file, (got, total) => {
+        this.progress = { label: 'Tải mã nguồn engine', done: got, total, unit: 'bytes' };
+        this.emit('engine:status', this.status());
+      });
+      await run('tar', ['-xzf', file, '-C', staging, '--strip-components=1']);
+      fs.rmSync(file, { force: true });
+    }
+    if (!fs.existsSync(path.join(staging, 'freevideo_engine'))) throw new Error('Mã nguồn engine tải về không đầy đủ');
+    // Giữ nguyên ĐƯỜNG DẪN thư mục (FreeVideo nhớ đường dẫn mã nguồn): thay nội dung bên trong.
+    if (fs.existsSync(this.src)) {
+      for (const name of fs.readdirSync(this.src)) fs.rmSync(path.join(this.src, name), { recursive: true, force: true });
+    } else fs.mkdirSync(this.src, { recursive: true });
+    for (const name of fs.readdirSync(staging)) fs.renameSync(path.join(staging, name), path.join(this.src, name));
+    fs.rmSync(staging, { recursive: true, force: true });
+    const stamp = { tag: ENGINE.tag, at: Date.now() };
+    fs.writeFileSync(path.join(this.src, '.maxai-engine.json'), JSON.stringify(stamp));
+    if (!IS_WIN) for (const f of ['freevideo', 'setup.sh']) { try { fs.chmodSync(path.join(this.src, f), 0o755); } catch { /* bỏ qua */ } }
+    this.progress = null;
+    return stamp;
+  }
+
+  // Lệnh "freevideo setup ..." theo hệ điều hành (giống trình khởi chạy chính thức của FreeVideo).
+  async setupCommand(args) {
+    const env = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8', NO_COLOR: '1', FREEVIDEO_UI_EVENTS: '1', FREEVIDEO_HOME: this.root };
+    for (const k of ['PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV']) delete env[k];
+    if (process.env.MAXAI_FAKE_SETUP) return { cmd: 'python3', args: [process.env.MAXAI_FAKE_SETUP, '--root', this.root, ...args], env };   // kiểm thử giao diện
+    if (IS_WIN) {
+      const ps = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+      return { cmd: ps, args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(this.src, 'freevideo.ps1'), '--root', this.root, 'setup', ...args], env };
+    }
+    if (IS_MAC) {
+      const py = await this.macPython();
+      env.PYTHONPATH = this.src;
+      return { cmd: py, args: ['-B', '-X', 'utf8', path.join(this.src, 'freevideo_engine', 'installed_entry.py'), 'freevideo_engine.bootstrap', '--root', this.root, ...args], env };
+    }
+    return { cmd: 'bash', args: [path.join(this.src, 'freevideo'), '--root', this.root, 'setup', ...args, ...(args.includes('--plan') ? [] : ['--no-launch'])], env };
+  }
+
+  // macOS: Python riêng qua uv (giống bản FreeVideo cho Mac tự chuẩn bị) — không cần Python của hệ thống.
+  async macPython() {
+    const base = path.join(this.root, '.maxai');
+    const uv = path.join(base, 'uv', 'uv');
+    if (!fs.existsSync(uv)) {
+      const arch = process.arch === 'arm64' ? 'aarch64' : 'x86_64';
+      const file = path.join(base, 'uv.tar.gz');
+      fs.mkdirSync(path.join(base, 'uv'), { recursive: true });
+      await download(`https://github.com/astral-sh/uv/releases/download/${ENGINE.uvVersion}/uv-${arch}-apple-darwin.tar.gz`, file);
+      await run('tar', ['-xzf', file, '-C', path.join(base, 'uv'), '--strip-components=1']);
+      fs.rmSync(file, { force: true });
+    }
+    const env = { ...process.env, UV_PYTHON_INSTALL_DIR: path.join(base, 'python') };
+    await run(uv, ['python', 'install', ENGINE.python], { env });
+    const out = await run(uv, ['python', 'find', ENGINE.python], { env });
+    return out.trim().split('\n').pop();
+  }
+
+  // ---------------- Bước 2: kiểm tra máy (chỉ đọc, không cài gì)
+  async plan(options = {}) {
+    if (this.task) throw new Error('Engine đang bận: ' + this.task.kind);
+    this.task = { kind: 'plan' };
+    this.log = [];
+    this.setPhase('planning');
+    try {
+      await this.ensureSource();
+      this.progress = { label: 'Đang kiểm tra máy tính', done: 0, total: 0 };
+      this.emit('engine:status', this.status());
+      const fixture = process.env.MAXAI_HW_FIXTURE ? ['--hardware-json', process.env.MAXAI_HW_FIXTURE] : [];   // kiểm thử không GPU
+      const c = await this.setupCommand(['--plan', '--json', ...fixture, ...this.installArgs(options)]);
+      const out = await run(c.cmd, c.args, { env: c.env, cwd: this.root, onLine: (l) => this.addLog(l), allowFail: true });
+      const json = extractJson(out);
+      if (!json) throw new Error(lastLines(this.log) || 'Không đọc được kết quả kiểm tra máy');
+      this.lastPlan = summarizePlan(json);
+      this.progress = null;
+      this.setPhase(this.machine() ? 'installed' : 'planned');
+      return this.lastPlan;
+    } catch (e) {
+      this.progress = null;
+      this.setPhase('failed', { error: e.message });
+      throw e;
+    } finally { this.task = null; }
+  }
+
+  installArgs(o) {
+    const a = [];
+    if (o.imageModel) a.push('--image-model');
+    if (o.reuseModels) a.push('--reuse-models', o.reuseModels);
+    if (o.allQualities === false) a.push('--no-sampling-caches');
+    return a;
+  }
+
+  // ---------------- Bước 3: cài engine + tải mô hình (có tiến độ, huỷ được, chạy lại thì tải tiếp)
+  async install(options = {}) {
+    if (this.task) throw new Error('Engine đang bận: ' + this.task.kind);
+    if (this.host) await this.stop();
+    this.task = { kind: 'install', cancelled: false };
+    this.log = [];
+    this.tasks = {};
+    this.setPhase('installing');
+    try {
+      await this.ensureSource();
+      const c = await this.setupCommand(['--yes', '--accept-model-license', '--plain', ...this.installArgs(options)]);
+      const code = await run(c.cmd, c.args, { env: c.env, cwd: this.root, task: this.task, allowFail: true, codeOnly: true,
+        onLine: (line) => this.onSetupLine(line) });
+      if (this.task.cancelled) { this.progress = null; this.setPhase('cancelled'); return this.status(); }
+      if (code !== 0 || !this.machine()) {
+        const failure = this.failure || lastLines(this.log);
+        throw new Error(failure || `Cài đặt dừng (mã ${code}). Bấm "Cài tiếp" để chạy lại — file đã tải được giữ lại.`);
+      }
+      this.progress = null;
+      this.setPhase('installed');
+      return this.status();
+    } catch (e) {
+      this.progress = null;
+      this.setPhase('failed', { error: e.message });
+      throw e;
+    } finally { this.task = null; this.failure = null; }
+  }
+
+  onSetupLine(line) {
+    let ev = null;
+    if (line.startsWith('{')) { try { ev = JSON.parse(line); } catch { ev = null; } }
+    if (!ev) { this.addLog(line); return; }
+    if (ev.event === 'freevideo_ui') {
+      const k = ev.kind;
+      if (k === 'phase') this.progress = { ...(this.progress || {}), phase: ev.label, phaseDone: ev.done, phaseTotal: ev.total };
+      else if (k === 'task' || k === 'progress') {
+        this.tasks[ev.key] = { label: ev.label, detail: ev.detail || '', done: ev.done, total: ev.total, state: ev.state || 'running' };
+        this.progress = { ...(this.progress || {}), current: this.tasks[ev.key], tasks: Object.values(this.tasks).slice(-8) };
+      } else if (k === 'task_end') {
+        if (this.tasks[ev.key]) this.tasks[ev.key].state = 'done';
+        this.progress = { ...(this.progress || {}), tasks: Object.values(this.tasks).slice(-8) };
+      } else if (k === 'failure') { this.failure = ev.error; this.addLog('Lỗi: ' + ev.error); }
+      else if (k === 'models') this.progress = { ...(this.progress || {}), models: ev.groups };
+    } else if (ev.event === 'local_model_progress') {
+      this.progress = { ...(this.progress || {}), current: { label: 'Mô hình: ' + (ev.name || ev.file || ''), detail: ev.phase, done: ev.done_bytes, total: ev.total_bytes, unit: 'bytes' } };
+    }
+    const now = Date.now();
+    if (!this.lastEmit || now - this.lastEmit > 400) { this.lastEmit = now; this.emit('engine:status', this.status()); }
+  }
+
+  cancel() {
+    const t = this.task;
+    if (!t || !t.child) return false;
+    t.cancelled = true;
+    killTree(t.child);
+    return true;
+  }
+
+  // ---------------- Bước 4: bật / tắt engine (ComfyUI ngầm, chỉ nghe 127.0.0.1)
+  async start() {
+    if (this.host) return this.status();
+    const machine = this.machine();
+    if (!machine) throw new Error('Engine chưa được cài. Vào mục Engine & mô hình để cài.');
+    if (this.task) throw new Error('Engine đang bận: ' + this.task.kind);
+    const script = path.join(this.root, '.maxai', 'engine_host.py');
+    fs.mkdirSync(path.dirname(script), { recursive: true });
+    fs.writeFileSync(script, HOST_PY);
+    const env = { ...process.env, PYTHONPATH: this.src, PYTHONNOUSERSITE: '1', PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8',
+      FREEVIDEO_HOME: this.root, NO_COLOR: '1' };
+    for (const k of ['PYTHONHOME', 'VIRTUAL_ENV']) delete env[k];
+    this.log = [];
+    this.setPhase('starting');
+    const hostScript = process.env.MAXAI_FAKE_HOST || script;   // kiểm thử giao diện
+    const child = spawn(machine.python, ['-B', '-X', 'utf8', hostScript, '--root', this.root, '--port', String(this.cfg.port || 0)],
+      { cwd: this.root, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    this.host = child;
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const done = (err) => {
+        if (settled) return; settled = true;
+        if (err) reject(err); else resolve(this.status());
+      };
+      lines(child.stdout, (line) => {
+        let ev = null;
+        if (line.startsWith('{')) { try { ev = JSON.parse(line); } catch { ev = null; } }
+        if (!ev || ev.event !== 'maxai_engine') { this.addLog(line); return; }
+        if (ev.kind === 'stage') { this.progress = { label: ev.label }; this.emit('engine:status', this.status()); }
+        else if (ev.kind === 'log') this.addLog(ev.text);
+        else if (ev.kind === 'open') {
+          this.url = ev.url; this.progress = null;
+          this.cfg.port = Number(new URL(ev.url).port) || this.cfg.port; this.saveSettings();
+          this.setPhase('running');
+          this.emit('engine:open', { url: ev.url, root: this.root });
+          done();
+        } else if (ev.kind === 'failed') { this.state.error = ev.error; this.addLog('Lỗi: ' + ev.error); }
+      });
+      lines(child.stderr, (line) => this.addLog(line));
+      child.on('exit', (code) => {
+        this.host = null; this.url = null; this.progress = null;
+        const wanted = this.stopping; this.stopping = false;
+        if (wanted) this.setPhase('stopped');
+        else this.setPhase('failed', { error: this.state.error || lastLines(this.log) || `Engine dừng bất ngờ (mã ${code})` });
+        done(new Error(this.state.error || 'Engine không khởi động được'));
+      });
+      child.on('error', (e) => { this.host = null; this.setPhase('failed', { error: e.message }); done(e); });
+    });
+  }
+
+  async stop() {
+    const child = this.host;
+    if (!child) return this.status();
+    this.stopping = true;
+    this.setPhase('stopping');
+    try { child.stdin.end(); } catch { /* đã đóng */ }       // engine_host tự tắt ComfyUI khi Max AI đóng ống nối
+    await new Promise((r) => { const t = setTimeout(() => { killTree(child); r(); }, 15000); child.once('exit', () => { clearTimeout(t); r(); }); });
+    return this.status();
+  }
+
+  setAutostart(v) { this.cfg.autostart = Boolean(v); this.saveSettings(); return this.status(); }
+}
+
+// ------------------------------------------------------------------ engine_host.py (chạy bằng Python của engine)
+const HOST_PY = String.raw`# Max AI · bật ComfyUI + FreeVideo cho giao diện Max AI (tạo tự động, đừng sửa).
+# Giống "freevideo open" của FreeVideo nhưng chạy được trên Windows/macOS/Linux và tự tắt khi Max AI đóng.
+import argparse, json, sys, threading, time
+from pathlib import Path
+
+def say(kind, **value):
+    print(json.dumps(dict(event='maxai_engine', kind=kind, **value), ensure_ascii=False), flush=True)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--root', required=True)
+parser.add_argument('--port', type=int, default=0)
+args = parser.parse_args()
+stop = threading.Event()
+
+def watch():
+    try:
+        sys.stdin.read()          # Max AI đóng ống nối (thoát / bấm Tắt engine) → dừng
+    except Exception:
+        pass
+    stop.set()
+
+threading.Thread(target=watch, daemon=True).start()
+controller = None
+try:
+    from freevideo_engine import comfy_service as cs
+    from freevideo_engine.comfy_launcher_runtime import Controller, deploy
+    log = lambda *parts: say('log', text=' '.join(str(p) for p in parts))
+    root = Path(args.root).resolve()
+    machine = cs.ready_machine(root)
+    if machine is None:
+        say('failed', error='Engine chưa cài xong. Hãy chạy Cài tiếp trong Max AI.')
+        sys.exit(2)
+    source = cs.source_root()
+    record = cs.installed(root)
+    port = args.port or (cs.port_of(record['url']) if record else cs.first_free_port())
+    say('stage', label='Đang chuẩn bị ComfyUI (lần đầu có thể mất vài phút)')
+    if record is None or Path(record['source']).resolve() != source or not Path(record['python']).is_file():
+        record = cs.install(root, source, machine, port, out=log)
+    else:
+        cs.add_node_packages(root, source, machine, record['root'], log)
+        deploy(record['root'], source, root)
+    controller = Controller(Path(record['source']))
+    if not controller.restore({'installation': dict(record, url='http://127.0.0.1:%d' % port)}):
+        say('failed', error='Cài đặt engine chưa hoàn tất. Hãy chạy Cài tiếp trong Max AI.')
+        sys.exit(3)
+    say('stage', label='Đang khởi động engine AI')
+    controller._connect()
+    state = controller.state
+    if state.get('status') != 'open':
+        say('failed', error=state.get('error') or 'ComfyUI không mở được', log=str(controller.server_log or ''))
+        sys.exit(4)
+    url = (state.get('url') or controller.server_url or '').split('/?')[0]
+    say('open', url=url, owned=controller.owns_server(), log=str(controller.server_log or ''))
+    while not stop.wait(1):
+        if controller.server is not None and controller.server.poll() is not None:
+            say('failed', error='ComfyUI đã dừng', log=str(controller.server_log or ''))
+            break
+except SystemExit:
+    raise
+except BaseException as error:
+    say('failed', error=str(error) or type(error).__name__)
+    sys.exit(1)
+finally:
+    if controller is not None:
+        try:
+            controller.close()
+        except Exception:
+            pass
+    say('stopped')
+`;
+
+// ------------------------------------------------------------------ tiện ích
+function freeBytes(dir) { const s = fs.statfsSync(dir); return Number(s.bavail) * Number(s.bsize); }
+function existingParent(p) { let d = path.resolve(p); while (!fs.existsSync(d) && path.dirname(d) !== d) d = path.dirname(d); return d; }
+function lastLines(log, n = 4) { return log.filter((l) => !l.startsWith('{')).slice(-n).join('\n'); }
+
+function lines(stream, cb) {
+  let buf = '';
+  stream.setEncoding('utf8');
+  stream.on('data', (d) => {
+    buf += d;
+    let i;
+    while ((i = buf.search(/\r?\n|\r/)) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + (buf[i] === '\r' && buf[i + 1] === '\n' ? 2 : 1)); cb(l); }
+  });
+  stream.on('end', () => { if (buf) cb(buf); });
+}
+
+// Chạy lệnh; trả stdout (hoặc mã thoát khi codeOnly). onLine nhận từng dòng stdout+stderr.
+function run(cmd, args, { env, cwd, onLine, task, allowFail = false, codeOnly = false } = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { env: env || process.env, cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], detached: !IS_WIN });
+    if (task) task.child = child;
+    let out = '';
+    lines(child.stdout, (l) => { out += l + '\n'; if (onLine) onLine(l); });
+    lines(child.stderr, (l) => { if (onLine) onLine(l); });
+    child.on('error', (e) => reject(new Error(`Không chạy được ${path.basename(cmd)}: ${e.message}`)));
+    child.on('close', (code) => {
+      if (codeOnly) return resolve(code);
+      if (code !== 0 && !allowFail) return reject(new Error(`${path.basename(cmd)} lỗi (mã ${code})`));
+      resolve(out);
+    });
+  });
+}
+
+function killTree(child) {
+  try {
+    if (IS_WIN) execFile('taskkill', ['/PID', String(child.pid), '/T', '/F'], () => {});
+    else process.kill(-child.pid, 'SIGTERM');
+  } catch { try { child.kill(); } catch { /* đã thoát */ } }
+}
+
+async function download(url, file, onProgress) {
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok || !res.body) throw new Error(`Tải ${url} lỗi ${res.status}`);
+  const total = Number(res.headers.get('content-length')) || 0;
+  const out = fs.createWriteStream(file);
+  let got = 0, last = 0;
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    got += value.length;
+    if (!out.write(Buffer.from(value))) await new Promise((r) => out.once('drain', r));
+    if (onProgress && Date.now() - last > 300) { last = Date.now(); onProgress(got, total); }
+  }
+  await new Promise((r) => out.end(r));
+}
+
+function extractJson(text) {
+  const i = text.indexOf('{\n');
+  const j = text.lastIndexOf('\n}');
+  if (i < 0 || j < 0) return null;
+  try { return JSON.parse(text.slice(i, j + 2)); } catch { return null; }
+}
+
+// Rút gọn kết quả "setup --plan --json" của FreeVideo cho màn hình kiểm tra máy.
+function summarizePlan(p) {
+  const inv = p.inventory || {};
+  const hw = inv.hardware || {};
+  const res = p.installation_resources || {};
+  return {
+    gpu: hw.gpu_name || (inv.selected_gpu || {}).name || (p.device_backend === 'mps' ? 'Apple Silicon' : ''),
+    vram: hw.vram_total || res.gpu_capacity_bytes || 0, ram: hw.ram_total || res.ram_capacity_bytes || 0,
+    driver: hw.driver_version || '', format: p.prepared_format || '',
+    download: (p.model_download_bytes || 0) + (p.package_download_bytes || 0),
+    disks: (p.disks || []).map((d) => ({ path: (d.paths || [])[0], needed: d.needed_bytes, free: d.free_bytes })),
+    steps: p.steps || [], licenses: p.licenses || [], errors: p.errors || [], warnings: p.warnings || [],
+    engineVersion: p.engine_version || '', root: p.root,
+  };
+}
+
+module.exports = { Engine, ENGINE, summarizePlan };

@@ -4,7 +4,8 @@
 const fs = require('fs');
 const path = require('path');
 const { Connection, detectRoots, findTokenRoots, normalizeUrl } = require('./freevideo');
-const { License } = require('./license');
+const { Device } = require('./device');
+const { Engine } = require('./engine');
 const { Updater } = require('./updater');
 const PKG = require('../../package.json');
 
@@ -22,28 +23,45 @@ class Bridge {
     this.settings = this.load();
     this.connection = new Connection(this.settings);
     this.allowedFiles = new Set(); // chỉ upload những file người dùng đã chọn qua hộp thoại
-    this.license = new License(path.dirname(settingsPath));
-    this.updater = new Updater({ license: this.license, quit, onProgress: (p) => this.emit('update:progress', p) });
+    this.device = new Device(path.dirname(settingsPath));
+    this.updater = new Updater({ device: this.device, quit, onProgress: (p) => this.emit('update:progress', p) });
+    this.engine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
     this.ready = null;
   }
 
-  // Bản quyền lúc mở + đếm máy mỗi 30 phút + kiểm tra lại bản quyền mỗi 3 giờ + cập nhật mỗi 6 giờ.
+  // Khi engine trong máy mở xong: trỏ kết nối tới đúng engine đó (token ở <thư mục cài>/agent/token).
+  onEngine(name, payload) {
+    if (name === 'engine:open') {
+      this.settings.root = payload.root;
+      this.settings.url = payload.url;
+      this.settings.urlPinned = false;
+      delete this.settings.token;
+      this.save();
+    }
+    this.emit(name === 'engine:open' ? 'engine:status' : name, name === 'engine:open' ? this.engine.status() : payload);
+  }
+
+  // Đếm máy (lúc mở + mỗi 30 phút), kiểm tra cập nhật mỗi 6 giờ, tự bật engine nếu đã cài.
   start() {
     if (this.ready) return this.ready;
-    this.ready = this.license.startup().catch(() => this.license.local()).then(() => {
-      this.license.ping();
-      setInterval(() => this.license.ping(), 30 * 60 * 1000).unref?.();
-      setInterval(async () => {
-        const before = this.license.view().tier;
-        try { await this.license.refresh(); } catch { /* giữ trạng thái cũ */ }
-        if (this.license.view().tier !== before) this.emit('license:changed', this.license.view());
-      }, 3 * 3600 * 1000).unref?.();
+    this.ready = Promise.resolve().then(() => {
+      this.device.ping();
+      setInterval(() => this.device.ping(), 30 * 60 * 1000).unref?.();
       const autoCheck = async () => {
         try { const r = await this.updater.check(); if (r.available) this.emit('update:available', r); } catch { /* thử lại lần sau */ }
       };
       setInterval(autoCheck, 6 * 3600 * 1000).unref?.();
+      if (this.engine.root && this.engine.machine() && this.engine.cfg.autostart !== false) {
+        this.engine.start().catch(() => { /* lỗi hiện ở trang Engine */ });
+      }
     });
     return this.ready;
+  }
+
+  // Đóng Max AI: tắt engine và dừng việc cài đang chạy (chạy lại sẽ tải tiếp).
+  async shutdown() {
+    try { this.engine.cancel(); } catch { /* bỏ qua */ }
+    try { await this.engine.stop(); } catch { /* bỏ qua */ }
   }
 
   load() {
@@ -90,6 +108,7 @@ class Bridge {
   async handle(channel, args = {}) {
     switch (channel) {
       case 'config:get':
+        await this.start();
         await this.autoConfigure();
         return this.config();
       case 'config:set': {
@@ -154,23 +173,36 @@ class Bridge {
       }
       // ---------- bản quyền, mua key, cập nhật (máy chủ active.mrhuynh.net/maxai)
       case 'app:info':
-        return { name: PKG.productName, version: PKG.version, machine: this.license.machine, platform: process.platform };
-      case 'license:get':
-        await this.start();
-        return this.license.view();
-      case 'license:refresh':
-        return wrap(async () => { await this.license.refresh(); return this.license.view(); });
-      case 'license:activate':
-        return wrap(async () => { const r = await this.license.activate(String(args.key || '')); this.emit('license:changed', this.license.view());
-          return { ...this.license.view(), renewed: r.renewed, added_days: r.added_days }; });
-      case 'license:plans':
-        return wrap(() => this.license.plans());
-      case 'license:guides':
-        return wrap(() => this.license.guides());
-      case 'license:order':
-        return wrap(() => this.license.order(String(args.plan || '')));
-      case 'license:orderStatus':
-        return wrap(() => this.license.orderStatus(String(args.code || '')));
+        return { name: PKG.productName, version: PKG.version, machine: this.device.machine, platform: process.platform };
+      case 'guides':
+        return wrap(() => this.device.guides());
+      // ---------- engine AI trong máy (giống FreeVideo)
+      case 'engine:status':
+        return this.engine.status();
+      case 'engine:pickRoot': {
+        const folder = await this.dialogs.pickFolder('Chọn thư mục cài engine & mô hình (cần khoảng 70 GB trống)');
+        if (!folder) return null;
+        const dir = /maxai-engine$/i.test(folder) ? folder : path.join(folder, 'MaxAI-Engine');
+        return this.engine.setRoot(dir);
+      }
+      case 'engine:useDefault':
+        return this.engine.setRoot(this.engine.defaultRoot());
+      case 'engine:plan':
+        return wrap(() => this.engine.plan(args || {}));
+      case 'engine:install':
+        return wrap(() => this.engine.install(args || {}));
+      case 'engine:cancel':
+        return this.engine.cancel();
+      case 'engine:start':
+        return wrap(() => this.engine.start());
+      case 'engine:stop':
+        return wrap(() => this.engine.stop());
+      case 'engine:autostart':
+        return this.engine.setAutostart(args.value);
+      case 'engine:pickModels': {
+        const folder = await this.dialogs.pickFolder('Chọn thư mục mô hình có sẵn để dùng lại (không bắt buộc)');
+        return folder || null;
+      }
       case 'update:check':
         return wrap(() => this.updater.check());
       case 'update:download':

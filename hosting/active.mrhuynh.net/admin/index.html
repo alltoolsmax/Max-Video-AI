@@ -55,14 +55,14 @@ function show(j){INFO=j;$('#login').style.display='none';$('#app').style.display
 const TABS={video:[['stats','Tổng quan'],['installs','Máy đã cài'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['release','Cập nhật phần mềm'],['orders','Đơn hàng'],['events','Nhật ký']],
  voice:[['v_stats','Tổng quan'],['v_installs','Máy đã cài'],['v_plans_edit','Bảng giá'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_release','Phát hành & cập nhật']],
  gcloud:[['g_stats','Tổng quan'],['g_releases','Phát hành & cập nhật'],['g_events','Nhật ký']],
- maxai:[['stats','Tổng quan'],['installs','Máy đã cài'],['keys','Danh sách key'],['create','Tạo key'],['plans','Bảng giá'],['guides','Video hướng dẫn'],['m_release','Cập nhật phần mềm'],['orders','Đơn hàng'],['events','Nhật ký']]};
-const MAX_GUIDE_PAGES=[['video','Tạo video'],['image','Tạo ảnh'],['queue','Hàng đợi'],['library','Thư viện'],['settings','Cài đặt & kết nối FreeVideo']];
+ maxai:[['m_overview','Tổng quan'],['installs','Máy đã cài'],['guides','Video hướng dẫn'],['m_release','Cập nhật phần mềm'],['events','Nhật ký']]};
+const MAX_GUIDE_PAGES=[['engine','Engine & mô hình (cài, tải mô hình)'],['video','Tạo video'],['image','Tạo ảnh'],['queue','Hàng đợi'],['library','Thư viện'],['settings','Cài đặt']];
 const GP=()=>PROD=='maxai'?MAX_GUIDE_PAGES:GUIDE_PAGES;
 const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['muse_image','Tạo ảnh Muse'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
 let cur='stats',PLANS=[];
 function setProd(p){PROD=p;try{localStorage.setItem('prod',p)}catch(e){};$('#pv').classList.toggle('on',p=='video');$('#po').classList.toggle('on',p=='voice');$('#pg').classList.toggle('on',p=='gcloud');$('#pm').classList.toggle('on',p=='maxai');if(p=='maxai')api('m_info').then(j=>{MINFO=j||{}}).catch(()=>{});go(TABS[p][0][0])}
 async function go(t){cur=t;$('#nav').innerHTML=TABS[PROD].map(([k,n])=>`<a class="${k==t?'on':''}" onclick="go('${k}')">${n}</a>`).join('');
- const m=$('#main');m.innerHTML='<span class="mu">Đang tải…</span>';PLANS=PROD=='gcloud'?[]:((await api(PROD=='video'?'plans':'v_plans')).plans||[]);await R[t](m)}
+ const m=$('#main');m.innerHTML='<span class="mu">Đang tải…</span>';PLANS=PROD=='gcloud'||PROD=='maxai'?[]:((await api(PROD=='video'?'plans':'v_plans')).plans||[]);await R[t](m)}
 const planName=c=>(PLANS.find(p=>p.code==c)||{}).name||c;
 function kstatus(k,now){if(k.status=='active'&&k.expires_at&&k.expires_at<now)return'<span class="tag t-exp">hết hạn</span>';
  return`<span class="tag t-${k.status}">${{new:'chưa dùng',active:'đang dùng',revoked:'đã khóa',merged:'đã gia hạn'}[k.status]}</span>`}
@@ -153,6 +153,19 @@ const R={
   <td class="acts">${o.status!='paid'?`<button class="g" onclick="paid('order_paid','${o.code}')">Xác nhận đã nhận tiền</button>`:`<button class="g" onclick="copy('${o.key}')">Chép key</button>`}</td></tr>`).join('')+'</table>'},
  async events(m){const j=await api('events');m.innerHTML=`<table><tr><th>Lúc</th><th>Sản phẩm</th><th>Việc</th><th>Key</th><th>Máy</th><th>Chi tiết</th></tr>`+
   j.events.map(e=>`<tr><td class="mu">${dt(+e.at)}</td><td>${e.product=='voiceai'?'Voice AI':e.product=='maxai'?'Max AI':'Video AI'}</td><td>${esc(e.kind)}</td><td class="k">${esc(e.key||'')}</td><td class="mono mu">${esc((e.machine||'').slice(0,19))}</td><td>${esc(e.detail||'')}</td></tr>`).join('')+'</table>'},
+ // ---------------- MAX AI (miễn phí, không key): tổng quan = số máy + bản đang phát hành
+ async m_overview(m){const j=await api('installs');const s=j.stats;
+  m.innerHTML=`<div class="cards" style="margin-bottom:14px">
+ <div class="card"><span>Máy đang mở (30 phút)</span><b style="color:var(--ok)">${s.online}</b></div>
+ <div class="card"><span>Máy hoạt động (24 giờ)</span><b>${s.active_24h}</b></div>
+ <div class="card"><span>Máy dùng (30 ngày)</span><b>${s.used_30d}</b></div>
+ <div class="card"><span>Tổng máy đã cài</span><b>${s.total}</b></div>
+ <div class="card"><span>Máy mới (7 ngày)</span><b>${s.new_7d}</b></div>
+ <div class="card"><span>Windows / macOS (30 ngày)</span><b>${s.win_30d} / ${s.mac_30d}</b></div>
+ <div class="card"><span>Lượt kiểm tra cập nhật</span><b>${(s.checks||0).toLocaleString('vi-VN')}</b></div>
+ <div class="card"><span>Bản đang phát hành</span><b style="font-size:18px">${esc([s.release_win&&'Win v'+s.release_win,s.release_mac&&'Mac v'+s.release_mac].filter(Boolean).join(' · ')||'—')}</b></div>
+ <div class="card"><span>Phiên bản đang dùng (30 ngày)</span><b style="font-size:13px;line-height:1.5">${(s.versions||[]).map(v=>`${v.os=='mac'?'Mac':'Win'} ${esc(v.version||'?')}: ${v.n}`).join('<br>')||'—'}</b></div></div>
+ <p class="mu">Max AI miễn phí (không key). Phần mềm báo về khi mở, khi kiểm tra cập nhật và mỗi 30 phút: chỉ mã máy đã băm, phiên bản, hệ điều hành.</p>`},
  // ---------------- MAX AI: cập nhật phần mềm (GitHub Actions build Windows + macOS, giống GCloud Hub)
  async m_release(m){const j=await api('releases');const L=j.releases.find(r=>+r.id==j.latest_id);const G=j.win_github||{},M=j.mac_github||{};
   const mb=n=>n?(n/1048576).toFixed(1)+' MB':'';const gh='https://github.com/'+esc(j.repo||'alltoolsmax/Max-Video-AI');

@@ -2,7 +2,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const call = (channel, args) => ipcRenderer.invoke('bridge', channel, args);
-const EVENTS = ['update:progress', 'update:available', 'license:changed'];
+const EVENTS = ['update:progress', 'update:available', 'engine:status'];
 
 contextBridge.exposeInMainWorld('fv', {
   config: {
@@ -17,16 +17,20 @@ contextBridge.exposeInMainWorld('fv', {
   upload: (path) => call('files:upload', { path }),
   save: (route, name) => call('media:save', { route, name }),
   mediaUrl: (route) => (route ? 'fvmedia://api' + route : ''),
-  // Max AI: bản quyền, cập nhật, thông tin ứng dụng
+  // Max AI: engine trong máy, cập nhật, video hướng dẫn, thông tin ứng dụng
   app: () => call('app:info'),
-  license: {
-    get: () => call('license:get'),
-    refresh: () => call('license:refresh'),
-    activate: (key) => call('license:activate', { key }),
-    plans: () => call('license:plans'),
-    guides: () => call('license:guides'),
-    order: (plan) => call('license:order', { plan }),
-    orderStatus: (code) => call('license:orderStatus', { code }),
+  guides: () => call('guides'),
+  engine: {
+    status: () => call('engine:status'),
+    pickRoot: () => call('engine:pickRoot'),
+    useDefault: () => call('engine:useDefault'),
+    pickModels: () => call('engine:pickModels'),
+    plan: (opts) => call('engine:plan', opts),
+    install: (opts) => call('engine:install', opts),
+    cancel: () => call('engine:cancel'),
+    start: () => call('engine:start'),
+    stop: () => call('engine:stop'),
+    autostart: (value) => call('engine:autostart', { value }),
   },
   update: {
     check: () => call('update:check'),

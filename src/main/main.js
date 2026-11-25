@@ -57,8 +57,8 @@ app.whenReady().then(() => {
   bridge = new Bridge({
     settingsPath: path.join(app.getPath('userData'), 'settings.json'),
     dialogs: {
-      async pickFolder() {
-        const r = await dialog.showOpenDialog(win, { title: 'Chọn thư mục cài đặt FreeVideo', properties: ['openDirectory'] });
+      async pickFolder(title) {
+        const r = await dialog.showOpenDialog(win, { title: title || 'Chọn thư mục cài đặt FreeVideo', properties: ['openDirectory', 'createDirectory'] });
         return r.canceled ? null : r.filePaths[0];
       },
       async pickFiles(filters, multiple) {
@@ -95,3 +95,12 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+// Đóng Max AI → tắt engine AI (ComfyUI) và dừng việc tải mô hình đang chạy (lần sau tải tiếp).
+let quitting = false;
+app.on('before-quit', (event) => {
+  if (quitting || !bridge) return;
+  event.preventDefault();
+  quitting = true;
+  bridge.shutdown().finally(() => app.quit());
+});

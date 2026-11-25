@@ -1,11 +1,10 @@
-// Chuẩn bị máy chủ bản quyền Max AI trên hosting active.mrhuynh.net (giống hosting\chuan-bi-hosting.bat của Video AI).
+// Chuẩn bị máy chủ Max AI (đếm máy, video hướng dẫn, cập nhật) trên hosting active.mrhuynh.net (giống hosting\chuan-bi-hosting.bat của Video AI).
 //
 //   node tools/prepare-hosting.js [tên-miền]        (mặc định active.mrhuynh.net)
 //
 // Việc làm:
-//  1. Tạo "con dấu" ký giấy phép (hosting/.maxai_seed.hex) nếu chưa có. KHÔNG xóa / KHÔNG đổi file này:
-//     đổi con dấu = mọi key đã bán không dùng được với bản build mới.
-//  2. Ghi khóa CÔNG KHAI + địa chỉ máy chủ vào src/main/license-config.json (phần mềm dùng để kiểm tra giấy phép).
+//  1. Tạo khóa nội bộ của máy chủ (hosting/.maxai_seed.hex) nếu chưa có (thư viện máy chủ dùng chung với Video AI cần có).
+//  2. Ghi địa chỉ máy chủ vào src/main/server-config.json.
 //  3. Tạo hosting/upload/MaxAI-hosting.zip (lần đầu, có config.php) và MaxAI-hosting-update.zip (lần sau, không config):
 //     tải lên THƯ MỤC CHÍNH của hosting rồi Extract là xong.
 const fs = require('fs');
@@ -22,28 +21,25 @@ let seed = fs.existsSync(SEED_FILE) ? fs.readFileSync(SEED_FILE, 'utf8').trim() 
 if (!/^[0-9a-f]{64}$/.test(seed)) {
   seed = crypto.randomBytes(32).toString('hex');
   fs.writeFileSync(SEED_FILE, seed + '\n', { mode: 0o600 });
-  console.log('Đã tạo con dấu mới: ' + SEED_FILE + '  ← SAO LƯU file này (USB / Drive riêng), không gửi cho ai.');
+  console.log('Đã tạo khóa nội bộ: ' + SEED_FILE);
 }
 const pkcs8 = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.from(seed, 'hex')]);
 const priv = crypto.createPrivateKey({ key: pkcs8, format: 'der', type: 'pkcs8' });
-const pub = crypto.createPublicKey(priv).export({ format: 'jwk' }).x; // base64url, 32 byte
+crypto.createPublicKey(priv);   // kiểm tra khóa hợp lệ
 
-// ---- khóa công khai vào phần mềm
-const cfgFile = path.join(ROOT, 'src', 'main', 'license-config.json');
-const cfg = fs.existsSync(cfgFile) ? JSON.parse(fs.readFileSync(cfgFile, 'utf8')) : {};
-Object.assign(cfg, { product: 'maxai', server_url: `https://${HOST}/maxai`, public_key: pub });
-fs.writeFileSync(cfgFile, JSON.stringify(cfg, null, 2) + '\n');
-console.log('Đã ghi khóa công khai vào ' + path.relative(ROOT, cfgFile) + ': ' + pub);
+// ---- địa chỉ máy chủ vào phần mềm (đếm máy, video hướng dẫn, cập nhật). Max AI miễn phí: không cần khóa công khai.
+const cfgFile = path.join(ROOT, 'src', 'main', 'server-config.json');
+fs.writeFileSync(cfgFile, JSON.stringify({ product: 'maxai', server_url: `https://${HOST}/maxai` }, null, 2) + '\n');
+console.log('Đã ghi địa chỉ máy chủ vào ' + path.relative(ROOT, cfgFile));
 
 // ---- gói tải lên hosting: 1 file zip, giải nén ở THƯ MỤC CHÍNH của hosting (nơi có thư mục active.mrhuynh.net và active_private,
-//      giống gói cập nhật của Video AI) → tự thêm Max AI + tự đè 3 file dùng chung, không đụng dữ liệu / config của tool khác.
+//      giống gói cập nhật của Video AI) → tự thêm Max AI + tự đè 2 file trang quản trị, không đụng dữ liệu / config của tool khác.
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const H = path.join(ROOT, 'hosting');
 const code = [
   'active.mrhuynh.net/maxai/index.php', 'active.mrhuynh.net/maxai/.htaccess',
   'active.mrhuynh.net/admin/maxai_api.php', 'active.mrhuynh.net/admin/api.php', 'active.mrhuynh.net/admin/index.html',
-  'active.mrhuynh.net/webhook.php',
   'active_private/maxai/lib.php', 'active_private/maxai/config.example.php',
 ].map((f) => [f.replace(/^active\.mrhuynh\.net\//, HOST + '/'), fs.readFileSync(path.join(H, f))]);
 const deny = Buffer.from('Require all denied\n');
@@ -56,10 +52,10 @@ zipStore(path.join(OUT, 'MaxAI-hosting-update.zip'), code);
 console.log(`
 Xong. Thư mục ${path.relative(ROOT, OUT)}:
   MaxAI-hosting.zip         → LẦN ĐẦU: cPanel › File Manager › THƯ MỤC CHÍNH (thấy 2 thư mục ${HOST} và active_private) › Upload › Extract.
-                              Tự thêm Max AI, tự đè admin/api.php, admin/index.html, webhook.php. Có con dấu – giữ bí mật.
+                              Tự thêm Max AI, tự đè admin/api.php, admin/index.html (giữ nguyên Video AI / Voice AI / GCloud Hub).
   MaxAI-hosting-update.zip  → LẦN SAU (cập nhật mã): làm y hệt. Không có config.php nên không mất gì.
-Kiểm tra: https://${HOST}/maxai/v1/plans  ·  https://${HOST}/admin/ › nút ⚡ Max AI
-Rồi đưa src/main/license-config.json lên GitHub để bản build mới khóa key.`);
+Kiểm tra: https://${HOST}/maxai/v1/app/version  ·  https://${HOST}/admin/ › nút ⚡ Max AI
+`);
 
 // ---- zip không nén (giống tools/make-downloads.js)
 function zipStore(dest, list) {   // list: [[tên trong zip, Buffer]]

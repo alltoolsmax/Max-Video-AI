@@ -164,7 +164,7 @@ function navigate(route, params) {
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.route === route));
   App.current = page;
   App.currentRoute = route;
-  const title = { video: 'Tạo video', image: 'Tạo ảnh', queue: 'Hàng đợi', library: 'Thư viện', settings: 'Cài đặt', soon: 'Sắp có' }[name];
+  const title = { video: 'Tạo video', image: 'Tạo ảnh', queue: 'Hàng đợi', library: 'Thư viện', settings: 'Cài đặt', engine: 'Engine & mô hình', soon: 'Sắp có' }[name];
   if ($('#pageTitle')) $('#pageTitle').textContent = title || '';
   page.render(content, Object.assign({ sub }, params || {}));
 }

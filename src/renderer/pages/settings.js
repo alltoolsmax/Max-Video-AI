@@ -8,7 +8,7 @@ registerPage('settings', (() => {
   function render(root) {
     const page = h('div', { class: 'page', style: { maxWidth: '980px' } });
     page.append(h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Cài đặt'),
-      h('div', { class: 'sub' }, 'Kết nối tới FreeVideo đang chạy trên máy này.'))));
+      h('div', { class: 'sub' }, 'Kết nối engine, giao diện và cập nhật.'))));
 
     els.status = h('div');
     els.url = h('input', { class: 'input', value: App.config.url, placeholder: 'http://127.0.0.1:8188' });
@@ -16,10 +16,10 @@ registerPage('settings', (() => {
     els.token = h('input', { class: 'input', type: 'password', placeholder: App.config.manualToken ? '•••••• (đã lưu token nhập tay)' : 'Để trống để đọc token từ thư mục cài đặt' });
 
     page.append(h('div', { class: 'card' },
-      h('div', { class: 'card-head' }, icon('link'), h('h2', {}, 'Kết nối FreeVideo'), h('div', { class: 'grow' }), els.status),
+      h('div', { class: 'card-head' }, icon('link'), h('h2', {}, 'Kết nối FreeVideo có sẵn (nâng cao)'), h('div', { class: 'grow' }), els.status),
       h('div', { class: 'card-body' },
         h('div', { class: 'notice info', style: { marginTop: 0, marginBottom: '18px' } }, icon('help'), h('div', {},
-          'Mở FreeVideo (launcher) hoặc ComfyUI có cài FreeVideo trước. App này dùng API cục bộ của FreeVideo; token được đọc từ ',
+          'Bình thường Max AI tự cài và tự nối engine (mục Engine & mô hình). Chỉ cần mục này nếu bạn đã cài FreeVideo riêng và muốn dùng lại. Token được đọc từ ',
           h('code', {}, '<thư mục cài đặt>/agent/token'), ' và không rời khỏi máy bạn.')),
         field('Thư mục cài đặt FreeVideo', h('div', {}, els.root, h('div', { class: 'row mt' },
           h('button', { class: 'btn btn-outline', onclick: pickRoot }, icon('folder_open'), 'Chọn thư mục…'),
@@ -43,33 +43,29 @@ registerPage('settings', (() => {
       h('div', { class: 'card-body' }, field('Chế độ màu', h('div', { style: { maxWidth: '420px' } }, theme)))));
 
     els.lic = h('div', { class: 'card-body' });
-    page.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('workspace_premium'), h('h2', {}, 'Bản quyền & cập nhật')), els.lic));
-    drawLicense();
-    unsubLic = App.on('license', drawLicense);
+    page.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('system_update'), h('h2', {}, 'Cập nhật & thông tin')), els.lic));
+    drawInfo();
 
     root.append(page);
     drawStatus();
     drawMachine();
     unsub = [App.on('connection', drawStatus), App.on('caps', drawMachine)];
   }
-  let unsubLic = () => {};
-  async function drawLicense() {
+  async function drawInfo() {
     if (!els.lic) return;
-    const v = Lic.view || {};
     const info = await window.fv.app();
     els.lic.innerHTML = '';
     els.lic.append(h('dl', { class: 'kv', style: { maxWidth: '560px' } },
-      h('dt', {}, 'Gói đang dùng'), h('dd', {}, v.label || '—'),
-      h('dt', {}, 'Key'), h('dd', {}, v.key || '—'),
-      h('dt', {}, 'Mã máy'), h('dd', {}, h('code', {}, info.machine)),
-      h('dt', {}, 'Phiên bản Max AI'), h('dd', {}, 'v' + info.version)),
+      h('dt', {}, 'Phiên bản Max AI'), h('dd', {}, 'v' + info.version),
+      h('dt', {}, 'Giấy phép'), h('dd', {}, 'Miễn phí · không giới hạn'),
+      h('dt', {}, 'Mã máy (ẩn danh)'), h('dd', {}, h('code', {}, info.machine))),
       h('div', { class: 'row mt' },
-        h('button', { class: 'btn btn-primary', onclick: () => openLicense() }, icon('workspace_premium'), v.tier === 'pro' ? 'Quản lý bản quyền' : 'Nâng cấp Chuyên nghiệp'),
-        h('button', { class: 'btn btn-outline', onclick: () => checkUpdate() }, icon('system_update'), 'Kiểm tra cập nhật'),
+        h('button', { class: 'btn btn-primary', onclick: () => checkUpdate() }, icon('system_update'), 'Kiểm tra cập nhật'),
+        h('button', { class: 'btn btn-outline', onclick: () => navigate('engine') }, icon('memory'), 'Engine & mô hình'),
         h('button', { class: 'btn btn-text', onclick: openAbout }, icon('info'), 'Thông tin ứng dụng')),
       h('div', { class: 'help' }, 'Max AI tự kiểm tra bản mới khi mở và mỗi 6 giờ. Engine FreeVideo (Apache-2.0) chạy MiniMax H3 / VDN-H3 trên máy bạn; trọng số model theo MiniMax H3 Community License.'));
   }
-  function leave() { unsub.forEach((u) => u()); unsubLic(); }
+  function leave() { unsub.forEach((u) => u()); }
 
   function drawStatus() {
     els.status.innerHTML = '';

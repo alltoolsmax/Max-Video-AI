@@ -61,7 +61,7 @@ registerPage('image', (() => {
         field('Khung hình', chipGroup(IMAGE_ASPECTS.map(([value, label]) => ({ value, label, ratio: value })), state.aspect, (v) => { state.aspect = v; setPref('imageAspect', v); })),
         field('Model', modelSelect),
         els.tierField = field('Độ phân giải (H3 Image)', els.tier),
-        field(h('span', {}, 'Số ảnh', proLock()), chipGroup([1, 2, 3, 4].map((n) => ({ value: n, label: n + ' ảnh' })), state.count, (v) => { state.count = v; update(); })),
+        field('Số ảnh', chipGroup([1, 2, 3, 4].map((n) => ({ value: n, label: n + ' ảnh' })), state.count, (v) => { state.count = v; update(); })),
         field('Seed', h('div', { class: 'row' }, switchToggle('Ngẫu nhiên', null, state.seedRandom, (v) => { state.seedRandom = v; seedInput.disabled = v; }), seedInput)))));
 
     els.btn = h('button', { class: 'btn btn-primary btn-hero', onclick: submit }, icon('image'), 'Tạo ảnh', h('span', { class: 'kbd' }, 'Ctrl ↵'));
@@ -113,7 +113,6 @@ registerPage('image', (() => {
 
   async function submit() {
     if (!state.prompt.trim()) { toast('Hãy nhập mô tả ảnh', { kind: 'err' }); return; }
-    if (!allowSubmit({ count: state.count })) return;
     els.btn.disabled = true;
     try {
       const specs = Array.from({ length: state.count }, (_, i) => buildSpec(i));

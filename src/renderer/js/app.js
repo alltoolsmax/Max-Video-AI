@@ -17,7 +17,7 @@
     applyTheme(dark ? 'dark' : 'light');
   });
   $('#queue-btn').addEventListener('click', () => navigate('queue'));
-  $('#conn-chip').addEventListener('click', () => navigate('settings'));
+  $('#conn-chip').addEventListener('click', () => navigate('engine'));
   $('#drawer-scrim').addEventListener('click', closeDrawer);
   $('#aboutBtn').addEventListener('click', openAbout);
   $('#authorBtn').addEventListener('click', openAbout);
@@ -35,9 +35,14 @@
     const dot = $('#conn-chip .dot');
     const text = $('#conn-chip .conn-text');
     dot.className = 'dot ' + (ok ? (App.caps && App.caps.ready === false ? 'warn' : 'ok') : 'bad');
-    if (!ok) { text.textContent = error && error.code === 'no_token' ? 'Chưa kết nối FreeVideo' : 'Mất kết nối FreeVideo'; return; }
+    if (!ok) {
+      const st = Eng.st;
+      text.textContent = st && st.phase === 'starting' ? 'Engine đang khởi động…' : st && st.phase === 'installing' ? 'Đang cài engine…'
+        : st && st.installed ? 'Engine đang tắt' : 'Chưa cài engine';
+      return;
+    }
     const c = App.caps;
-    text.textContent = c ? 'FreeVideo ' + (c.freevideo_version || '') + (c.device && c.device.vram_limit_gib ? ' · ' + c.device.vram_limit_gib + ' GB VRAM' : '') : 'Đã kết nối';
+    text.textContent = c ? 'Engine sẵn sàng' + (c.device && c.device.vram_limit_gib ? ' · ' + c.device.vram_limit_gib + ' GB VRAM' : '') : 'Engine sẵn sàng';
   });
   App.on('caps', () => App.emit('connection', { ok: App.connected }));
 
@@ -59,14 +64,22 @@
     }
   });
 
-  // Bản quyền + cập nhật (máy chủ active.mrhuynh.net/maxai)
-  window.fv.on('license:changed', (v) => { Lic.view = v; renderPlanCard(); App.emit('license', v); });
+  // Engine AI trong máy + cập nhật (máy chủ active.mrhuynh.net/maxai)
+  App.on('engine', renderEngineCard);
+  window.fv.on('engine:status', (st) => {
+    const was = Eng.st && Eng.st.phase;
+    Eng.st = st; App.emit('engine', st);
+    if (st.phase === 'running' && was !== 'running') window.fv.config.get().then((c) => { App.config = c; Poller.soon(200); });
+  });
   window.fv.on('update:available', (r) => { $('#updatePill').classList.remove('hidden'); if (r.mandatory) checkUpdate({ info: r }); });
 
   startTicker();
-  navigate(App.config.hasToken ? 'video' : 'settings');
+  await refreshEngine();
+  // Lần đầu (chưa có engine, chưa nối FreeVideo nào) → mở trang cài engine.
+  navigate(App.config.hasToken || (Eng.st && Eng.st.installed) ? 'video' : 'engine');
   Poller.start();
-  loadLicense();
+  loadGuides();
+  setInterval(() => { if (Eng.st && ['installing', 'planning', 'starting'].includes(Eng.st.phase)) refreshEngine(); }, 1500);
   // Kiểm tra bản mới khi mở (mỗi 6 giờ main process tự kiểm tra lại và báo về)
   setTimeout(async () => {
     const r = await window.fv.update.check();

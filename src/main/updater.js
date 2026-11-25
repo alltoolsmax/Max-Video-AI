@@ -2,7 +2,7 @@
 // Cập nhật online qua máy chủ quản trị chung (active.mrhuynh.net/maxai) — giống Video AI / GCloud Hub:
 // hỏi /v1/app/version → {version,url,sha256,size,notes,mandatory,min_version} → tải bộ cài → kiểm tra SHA-256 →
 // Windows: chạy bộ cài im lặng (/S) rồi tự mở lại · macOS: thay .app từ .dmg rồi mở lại (lỗi → mở .dmg cho người dùng kéo thả).
-// Mỗi lần hỏi cũng là một lượt "đếm máy" (mã máy đã băm + phiên bản + gói) cho trang quản trị.
+// Mỗi lần hỏi cũng là một lượt "đếm máy" (mã máy đã băm + phiên bản) cho trang quản trị.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -20,8 +20,8 @@ function cmpVer(a, b) {
 }
 
 class Updater {
-  constructor({ license, onProgress, quit }) {
-    this.license = license;
+  constructor({ device, onProgress, quit }) {
+    this.device = device;
     this.onProgress = onProgress || (() => {});
     this.quit = quit || (() => process.exit(0));
     this.downloaded = null;
@@ -30,12 +30,12 @@ class Updater {
 
   endpoint() {
     const q = new URLSearchParams({ os: IS_MAC ? 'mac' : 'win', arch: process.arch === 'arm64' ? 'arm64' : 'x64', v: PKG.version,
-      m: this.license.machine, tier: this.license.view().tier, t: String(Date.now()) });
-    return this.license.server + '/v1/app/version?' + q;
+      m: this.device.machine, t: String(Date.now()) });
+    return this.device.server + '/v1/app/version?' + q;
   }
 
   async info() {
-    if (!this.license.server) throw new Error('Chưa cấu hình máy chủ cập nhật');
+    if (!this.device.server) throw new Error('Chưa cấu hình máy chủ cập nhật');
     let res;
     try { res = await fetch(this.endpoint(), { cache: 'no-store', signal: AbortSignal.timeout(15000) }); }
     catch (e) { throw new Error('Không kết nối được máy chủ cập nhật'); }
