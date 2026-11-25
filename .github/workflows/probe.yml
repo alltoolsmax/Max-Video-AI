@@ -20,16 +20,21 @@ jobs:
           import comfyui_workflow_templates as t
           print('PKG', t.__file__)
           base = os.path.dirname(t.__file__)
-          files = []
-          for m in ['comfyui_workflow_templates_media_video', 'comfyui_workflow_templates_core', 'comfyui_workflow_templates']:
-              try:
-                  mod = importlib.import_module(m); files += glob.glob(os.path.join(os.path.dirname(mod.__file__), '**', '*.json'), recursive=True)
-              except Exception as e: print('no', m, e)
+          import site, subprocess
+          sp = site.getsitepackages()[0]
+          files = glob.glob(os.path.join(sp, '**', '*.json'), recursive=True)
+          print('json count', len(files))
+          os.makedirs('tpl', exist_ok=True)
+          names = json.loads(subprocess.run(['curl','-s','https://api.github.com/repos/Comfy-Org/workflow_templates/contents/templates?per_page=1000'],capture_output=True,text=True).stdout)
+          for it in names if isinstance(names, list) else []:
+              if 'ltx' in it['name'].lower() and it['name'].endswith('.json'):
+                  subprocess.run(['curl','-sL',it['download_url'],'-o',os.path.join('tpl',it['name'])])
+          files += glob.glob('tpl/*.json')
           ltx = sorted(f for f in files if 'ltx' in os.path.basename(f).lower())
           print('LTX FILES'); [print(' ', os.path.basename(f), os.path.getsize(f)) for f in ltx]
           os.makedirs('out', exist_ok=True)
           for f in ltx:
-              if '2_3' in f or '2.3' in f or 'ltx2' in f.lower():
+              if ('2_3' in f or '2.3' in f) and ('t2v' in f.lower() or 'i2v' in f.lower()):
                   d = json.load(open(f))
                   def nodes(g):
                       for n in g.get('nodes', []): yield n
