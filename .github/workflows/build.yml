@@ -55,6 +55,8 @@ jobs:
         run: |
           APP=$(ls -d dist/mac/*.app | head -1)
           echo "App: $APP"; sw_vers; uname -m
+          codesign -dv "$APP" 2>&1 | head -8; codesign --verify --deep --strict "$APP" && echo "codesign OK"
+          spctl -a -vv "$APP" 2>&1 || true
           MAXAI_SMOKE="$PWD/smoke-mac.png" "$APP/Contents/MacOS/Max AI" > smoke-mac.log 2>&1 &
           PID=$!
           for i in $(seq 1 60); do [ -f smoke-mac.png ] && break; sleep 2; done
