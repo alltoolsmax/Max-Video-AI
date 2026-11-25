@@ -140,7 +140,6 @@ function progressInfo(job) {
   if (p.block && p.block.total > 1) parts.push('phần ' + p.block.index + '/' + p.block.total);
   if (p.step && p.step.total) parts.push('bước ' + p.step.done + '/' + p.step.total);
   if (p.queue_position) parts.push('vị trí ' + p.queue_position);
-  if (typeof p.remaining_seconds === 'number') parts.push('còn ~' + fmtDuration(p.remaining_seconds));
   return { fraction, label: parts.join(' · ') };
 }
 function progressBar(fraction) {

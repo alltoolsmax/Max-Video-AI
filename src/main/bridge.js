@@ -42,12 +42,16 @@ class Bridge {
     this.ready = null;
   }
 
-  get mode() { return (this.settings.engine && this.settings.engine.mode) || 'full'; }
+  get mode() {
+    const m = (this.settings.engine && this.settings.engine.mode) || 'full';
+    return m === 'lite' && !hardware.LITE_ENABLED ? 'full' : m;
+  }
   get engine() { return this.mode === 'lite' ? this.liteEngine : this.mode === 'pro' ? this.proEngine : this.fullEngine; }
 
   // Chọn chế độ theo máy (lần đầu): đủ mạnh → bản đầy đủ, card yếu → chế độ nhẹ, không đủ → không tự cài gì
   async chooseMode() {
     const cfg = (this.settings.engine ||= {});
+    if (cfg.mode === 'lite' && !hardware.LITE_ENABLED) { try { await this.liteEngine.stop(); } catch { /* bỏ qua */ } delete cfg.mode; this.save(); }
     if (cfg.mode) return cfg.mode;
     const hw = await hardware.check();
     // Máy đã cài bản đầy đủ từ trước thì giữ nguyên
@@ -60,7 +64,7 @@ class Bridge {
   }
 
   async setMode(mode) {
-    if (!['full', 'lite', 'pro'].includes(mode)) throw new Error('Chế độ không hợp lệ');
+    if (!['full', 'pro', ...(hardware.LITE_ENABLED ? ['lite'] : [])].includes(mode)) throw new Error('Chế độ không hợp lệ');
     if (mode === this.mode && this.settings.engine && this.settings.engine.mode) return this.engine.status();
     const old = this.engine;
     try { old.cancel(); } catch { /* bỏ qua */ }

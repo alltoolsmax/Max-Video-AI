@@ -158,7 +158,7 @@ registerPage('autopilot', (() => {
       packNotice('AI tự chọn bản đẹp nhất cần gói "AI viết prompt" (Prompt VLM).'),
       field('Số bản quay mỗi cảnh', chipGroup([1, 2, 3, 4].map((n) => ({ value: n, label: n + ' bản' })), f.takes, (v) => { f.takes = v; }),
         'Nhiều bản → AI có nhiều lựa chọn hơn, nhưng lâu hơn tương ứng.'),
-      h('button', { class: 'btn btn-outline', style: { width: '100%' }, onclick: () => go(false) }, icon('fact_check'), 'Kiểm tra & ước tính thời gian'),
+      h('button', { class: 'btn btn-outline', style: { width: '100%' }, onclick: () => go(false) }, icon('fact_check'), 'Kiểm tra kịch bản'),
       planBox, h('div', { class: 'mt' }, start), aiLabelNote(),
       h('button', { class: 'btn btn-text mt', onclick: () => { if (confirm('Xoá kịch bản đang viết?')) { film = blankFilm(); draw(); } } }, icon('restart_alt'), 'Viết lại từ đầu'))));
     els.planBox = planBox; els.start = start;
@@ -223,7 +223,7 @@ registerPage('autopilot', (() => {
       const secs = plan.estimate && plan.estimate.seconds;
       const total = (plan.preview && plan.preview.total) || f.shots.length * f.takes;
       els.planBox.append(h('div', { class: 'notice info' }, icon('schedule'),
-        h('div', {}, h('b', {}, total + ' lần quay'), secs ? ' · ước tính ~' + fmtDuration(secs) + ' trên máy này' : '',
+        h('div', {}, h('b', {}, total + ' lần quay'), '',
           h('div', { class: 'small-text' }, 'Kịch bản hợp lệ. Có thể tắt Max Video AI ở màn hình khác trong lúc quay, nhưng đừng tắt engine.'))));
       if (!startIt) return;
       const r = await api('POST', '/drama', body);

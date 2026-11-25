@@ -658,3 +658,22 @@ body.nav-collapsed .lic-chip span:not(.ms) { display: none; }
 .lite-banner.pro { background: rgba(139, 92, 246, .12); border-color: rgba(139, 92, 246, .4); }
 .lite-banner.pro .ms { color: var(--accent2, #8b5cf6); }
 .mode-pick.three { grid-template-columns: repeat(3, 1fr); }
+
+/* Hàng đợi: vừa khung, không cần kéo ngang */
+.q-wrap { overflow-x: hidden; }
+.q-table { table-layout: fixed; }
+.q-table col.c-cb { width: 40px; } .q-table col.c-thumb { width: 96px; } .q-table col.c-status { width: 132px; } .q-table col.c-kind { width: 72px; }
+.q-table col.c-progress { width: 170px; } .q-table col.c-created { width: 104px; } .q-table col.c-elapsed { width: 104px; } .q-table col.c-acts { width: 104px; }
+.q-table td, .q-table th { overflow: hidden; text-overflow: ellipsis; }
+.q-table .prompt-cell { max-width: none; }
+.q-table .mini-progress { width: 100%; }
+.q-table td:last-child .row { justify-content: flex-end; }
+@media (max-width: 1320px) {
+  .q-table col.c-thumb, .q-table .col-thumb { width: 0; padding: 0; display: none; }
+  .q-table col.c-kind, .q-table .col-kind { width: 0; padding: 0; display: none; }
+  .q-table col.c-created { width: 92px; } .q-table col.c-elapsed { width: 96px; } .q-table col.c-progress { width: 150px; } .q-table col.c-acts { width: 96px; }
+}
+/* Màn hình thấp: menu trái cuộn được thay vì bóp méo nút (vd. dòng bản quyền) */
+.sidebar { overflow-y: auto; scrollbar-width: none; }
+.sidebar::-webkit-scrollbar { display: none; }
+.sidebar > * { flex-shrink: 0; }

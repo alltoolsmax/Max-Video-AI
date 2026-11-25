@@ -8,6 +8,8 @@ const os = require('os');
 const { execFile } = require('child_process');
 
 const GiB = 1024 ** 3;
+// Chế độ nhẹ (Wan 2.2 5B) tạm tắt: chất lượng video chưa đạt — máy card yếu được báo "không đủ cấu hình"
+const LITE_ENABLED = false;
 
 function exec(cmd, args, timeout = 15000) {
   return new Promise((resolve) => {
@@ -91,8 +93,8 @@ async function check() {
       return result;
     }
     result.reasons.push(others.length
-      ? 'Không thấy card NVIDIA (máy có: ' + others.join(', ') + '). Mô hình tạo video cần card NVIDIA từ 6 GB VRAM trở lên.'
-      : 'Không thấy card NVIDIA. Mô hình tạo video cần card NVIDIA từ 6 GB VRAM trở lên.');
+      ? 'Không thấy card NVIDIA (máy có: ' + others.join(', ') + '). Mô hình tạo video cần card NVIDIA RTX 30 trở lên, 8 GB VRAM.'
+      : 'Không thấy card NVIDIA. Mô hình tạo video cần card NVIDIA RTX 30 trở lên, 8 GB VRAM.');
     return result;
   }
   result.gpu = best.name; result.vram = best.vram; result.cap = best.cap; result.driver = best.driver;
@@ -103,15 +105,16 @@ async function check() {
     if (ram < 60 * GiB) result.reasons.push('Chất lượng cao (LTX-2.3) chạy mượt hơn với 64 GB RAM (máy này ' + fmt(ram) + ').');
   } else if (cap >= 8 && vram >= 7.5 * GiB && ramOk) {
     result.tier = 'full';
-  } else if (vram >= 5.5 * GiB && ramOk && (cap === 0 || cap >= 6)) {
+  } else if (LITE_ENABLED && vram >= 5.5 * GiB && ramOk && (cap === 0 || cap >= 6)) {
     result.tier = 'lite';
     if (cap > 0 && cap < 8) result.reasons.push(best.name + ' chưa hỗ trợ bản đầy đủ MiniMax H3 (cần RTX 30 trở lên) — dùng chế độ nhẹ.');
     else if (vram < 7.5 * GiB) result.reasons.push(best.name + ' có ' + fmt(vram) + ' VRAM, bản đầy đủ cần 8 GB — dùng chế độ nhẹ.');
     if (ram < 23 * GiB) result.reasons.push('Nên có 24–32 GB RAM để chế độ nhẹ chạy mượt (máy này ' + fmt(ram) + ').');
   } else {
+    if (cap > 0 && cap < 8) result.reasons.push(best.name + ' chưa đủ: mô hình tạo video cần card NVIDIA RTX 30 trở lên (RTX 3060, 4060, 5060…).');
     if (!ramOk) result.reasons.push('Cần ít nhất 16 GB RAM (máy này ' + fmt(ram) + ').');
-    if (vram < 5.5 * GiB) result.reasons.push(best.name + ' chỉ có ' + fmt(vram) + ' VRAM, cần ít nhất 6 GB.');
-    if (cap > 0 && cap < 6) result.reasons.push(best.name + ' quá cũ cho mô hình tạo video.');
+    if (vram < 7.5 * GiB) result.reasons.push(best.name + ' chỉ có ' + fmt(vram) + ' VRAM, cần ít nhất 8 GB.');
+
   }
   return result;
 }
@@ -123,4 +126,4 @@ async function checkCached() {
   return checkCached.value;
 }
 
-module.exports = { check: checkCached, fmt, GiB };
+module.exports = { check: checkCached, fmt, GiB, LITE_ENABLED };

@@ -279,11 +279,6 @@ registerPage('video', (() => {
       box.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('link_off'), h('div', {}, 'Engine chưa chạy. ',
         h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Mở Engine & mô hình'))));
     }
-    if (lastPlan && lastPlan.estimate && lastPlan.estimate.seconds) {
-      const total = lastPlan.estimate.seconds * (state.takes || 1);
-      box.append(h('div', { class: 'estimate' }, icon('timer'),
-        h('div', {}, h('div', { class: 'big' }, '~' + fmtDuration(total)), h('div', { class: 'small' }, 'thời gian ước tính trên máy này' + (state.takes > 1 ? ' (' + state.takes + ' bản)' : '')))));
-    }
     const g = lastPlan && lastPlan.geometry;
     const s = lastPlan && lastPlan.sampling;
     const chain = lastPlan && lastPlan.chain_plan;
@@ -300,7 +295,7 @@ registerPage('video', (() => {
         lastPlanError.next ? h('div', { class: 'small-text' }, lastPlanError.next) : null)));
     }
     const n = promptLines().length;
-    if (n > 1) box.append(h('div', { class: 'notice info' }, icon('playlist_play'), h('div', {}, n + ' video sẽ được tạo lần lượt' + (lastPlan && lastPlan.estimate && lastPlan.estimate.seconds ? ' · tổng ~' + fmtDuration(lastPlan.estimate.seconds * n) : '') + '.')));
+    if (n > 1) box.append(h('div', { class: 'notice info' }, icon('playlist_play'), h('div', {}, n + ' video sẽ được tạo lần lượt.')));
     if (!prompt) box.append(h('div', { class: 'notice info' }, icon('edit'), h('div', {}, 'Nhập prompt để bắt đầu — mỗi dòng 1 video.')));
     els.generateBtn.disabled = !prompt || !App.connected;
     els.previewBtn.disabled = !prompt || !App.connected;

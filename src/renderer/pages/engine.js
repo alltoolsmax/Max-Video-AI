@@ -93,7 +93,7 @@ registerPage('engine', (() => {
         h('div', { class: 'card-body' }, h('div', { class: 'feature-list' },
           ['Windows 10/11 64-bit hoặc Linux, card NVIDIA RTX 30 trở lên', 'Tối thiểu 8 GB VRAM, 16 GB RAM (khuyên 12 GB+ / 32 GB)',
             'Driver NVIDIA 580 trở lên', 'Khoảng 70 GB ổ đĩa trống (thêm ~16 GB nếu tải mô hình ảnh)',
-            'macOS: chip Apple M, 24 GB bộ nhớ (bản thử nghiệm)', 'Chế độ nhẹ: card NVIDIA 6 GB (GTX 16xx, RTX 20xx…), 16 GB RAM, ~25 GB ổ đĩa', 'Mạng ổn định lúc tải (~50 GB, tải tiếp được nếu đứt)'].map((t) => h('div', {}, icon('check_circle', 'fill'), t))),
+            'macOS: chip Apple M, 24 GB bộ nhớ (bản thử nghiệm)', 'Chất lượng cao: RTX 3090 / 4090 / 5090 (≥ 24 GB VRAM), nên 64 GB RAM, ~50 GB ổ đĩa', 'Mạng ổn định lúc tải (~50 GB, tải tiếp được nếu đứt)'].map((t) => h('div', {}, icon('check_circle', 'fill'), t))),
           h('div', { class: 'help mt' }, 'Bộ cài Max Video AI chỉ chứa ứng dụng và engine. Mô hình AI được tải về máy của bạn khi bấm Cài / Tải, rồi chạy hoàn toàn trên máy.'))));
     root.append(page);
     drawMode();
@@ -120,8 +120,7 @@ registerPage('engine', (() => {
       h('div', { class: 'card-head' }, icon('computer'), h('h2', {}, 'Máy của bạn'), h('div', { class: 'grow' }),
         h('button', { class: 'btn btn-text', onclick: () => drawMode() }, icon('refresh'), 'Kiểm tra lại')),
       h('div', { class: 'card-body' }, hardwareBox(),
-        h('div', { class: 'mode-pick three' },
-          opt('lite', 'speed', 'Chế độ nhẹ', 'Máy yếu — Wan 2.2 5B: video tới 5 giây, chưa có âm thanh, chỉ Tạo video. Card NVIDIA 6 GB trở lên (GTX 16xx, RTX 20xx…). Tải ~18 GB.', hw.tier === 'lite'),
+        h('div', { class: 'mode-pick' },
           opt('full', 'workspace_premium', 'Bản đầy đủ', 'Máy tầm trung — MiniMax H3: video tới 15 giây có âm thanh, Tạo ảnh, Sửa ảnh, Lồng tiếng, Phụ đề, Autopilot. RTX 30 trở lên (8 GB VRAM) hoặc Mac chip Apple. Tải ~50 GB.', hw.tier === 'full' || hw.tier === 'pro'),
           opt('pro', 'high_quality', 'Chất lượng cao', 'Máy mạnh — LTX-2.3 22B: video có âm thanh tới 10 giây, 1080p / 4K, chỉ Tạo video. RTX 3090 / 4090 / 5090 (≥ 24 GB VRAM), nên 64 GB RAM. Tải ~46 GB.', hw.tier === 'pro')))));
   }

@@ -38,8 +38,9 @@ registerPage('queue', (() => {
     page.append(h('div', { class: 'card' },
       h('div', { class: 'toolbar' }, chipGroup(FILTERS, filter, (v) => { filter = v; selected.clear(); draw(App.jobs); }), h('div', { style: { flex: 1 } }), kinds),
       els.selbar,
-      h('div', { class: 'table-wrap' }, h('table', { class: 'data q-table' },
-        h('thead', {}, h('tr', {}, h('th', { class: 'q-cb' }, els.all), ...['', 'Trạng thái', 'Loại', 'Nội dung', 'Tiến độ', 'Tạo lúc', 'Thời gian chạy', ''].map((t) => h('th', {}, t)))),
+      h('div', { class: 'table-wrap q-wrap' }, h('table', { class: 'data q-table' },
+        h('colgroup', {}, ['cb', 'thumb', 'status', 'kind', 'content', 'progress', 'created', 'elapsed', 'acts'].map((c) => h('col', { class: 'c-' + c }))),
+        h('thead', {}, h('tr', {}, h('th', { class: 'q-cb' }, els.all), ...[['', 'thumb'], ['Trạng thái'], ['Loại', 'kind'], ['Nội dung'], ['Tiến độ'], ['Tạo lúc'], ['Đã chạy'], ['']].map(([t, c]) => h('th', { class: c ? 'col-' + c : '' }, t)))),
         els.body)), els.empty));
     page.append(h('div', { class: 'help', style: { marginTop: '8px' } }, 'Mẹo: bấm chuột phải vào một dòng để Chạy / Dừng / Xoá. Giữ Ctrl hoặc Shift khi bấm ô chọn để chọn nhiều. Xoá khỏi hàng đợi không xoá video, ảnh đã lưu trong Thư viện.'));
     root.append(page);
@@ -113,19 +114,27 @@ registerPage('queue', (() => {
           openMenu(e.clientX, e.clientY, job);
         } },
         h('td', { class: 'q-cb' }, check),
-        h('td', {}, thumb),
+        h('td', { class: 'col-thumb' }, thumb),
         h('td', {}, statusBadge(job.status)),
-        h('td', {}, KINDS[job.kind] || job.kind),
+        h('td', { class: 'col-kind' }, KINDS[job.kind] || job.kind),
         h('td', { class: 'prompt-cell', title: jobTitle(job) }, jobTitle(job), job.client && job.client !== 'Max AI' ? h('div', { class: 'small-text muted' }, 'từ ' + job.client) : null),
         h('td', {}, ACTIVE.has(job.status) ? h('div', { class: 'mini-progress' }, h('div', { class: 'lbl', title: p.label }, p.label), progressBar(p.fraction))
           : job.error ? h('span', { class: 'small-text', style: { color: 'var(--red)' } }, errorText(job.error)) : '—'),
-        h('td', { style: { whiteSpace: 'nowrap' } }, fmtTime(job.created_at)),
+        h('td', { style: { whiteSpace: 'nowrap' }, title: fmtTime(job.created_at) }, shortTime(job.created_at)),
         h('td', { style: { whiteSpace: 'nowrap' } }, elapsed(job)),
         h('td', {}, actions));
       els.body.append(tr);
     });
     els.all.checked = rows.length > 0 && rows.every((j) => selected.has(j.id));
     els.all.indeterminate = selected.size > 0 && !els.all.checked;
+  }
+
+  // Hôm nay → 21:47; ngày khác → 24/11 21:47
+  function shortTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '—';
+    const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === new Date().toDateString() ? hm : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) + ' ' + hm;
   }
 
   const pick = (ids) => (App.jobs || []).filter((j) => ids.includes(j.id));
