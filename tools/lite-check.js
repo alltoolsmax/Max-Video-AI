@@ -1,7 +1,7 @@
 'use strict';
 // CI: gửi workflow chế độ nhẹ cho ComfyUI thật (bản cố định) để kiểm tra tên node & tham số hợp lệ.
 // Dùng: node tools/lite-check.js http://127.0.0.1:8188
-const { workflow } = require('../src/main/lite');
+const { workflow, ltxWorkflow } = require('../src/main/lite');
 const url = process.argv[2] || 'http://127.0.0.1:8188';
 (async () => {
   let bad = 0;
@@ -10,6 +10,13 @@ const url = process.argv[2] || 'http://127.0.0.1:8188';
     const r = await fetch(url + '/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: g, client_id: 'ci' }) });
     const j = await r.json();
     console.log(image ? 'có ảnh mở đầu' : 'chỉ prompt', r.status, JSON.stringify(j).slice(0, 1500));
+    if (!r.ok || !j.prompt_id) bad++;
+  }
+  for (const image of [null, 'maxai/start.png']) {
+    const g = ltxWorkflow({ prompt: 'a red fox running in snow, wind howling', width: 1280, height: 704, frames: 121, fps: 25, seed: 1, run: 'ci-ltx', image });
+    const r = await fetch(url + '/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: g, client_id: 'ci' }) });
+    const j = await r.json();
+    console.log('LTX', image ? 'có ảnh mở đầu' : 'chỉ prompt', r.status, JSON.stringify(j).slice(0, 2500));
     if (!r.ok || !j.prompt_id) bad++;
   }
   const info = await (await fetch(url + '/object_info')).json();

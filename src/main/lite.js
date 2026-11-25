@@ -1,4 +1,7 @@
 'use strict';
+// Engine ComfyUI dùng cho 2 chế độ (cùng 1 bản ComfyUI + PyTorch trong <thư mục cài>/lite):
+//   lite — Chế độ nhẹ: Wan 2.2 TI2V 5B, cho card NVIDIA yếu (GTX 16xx, RTX 20xx, 6–8 GB VRAM)
+//   pro  — Chất lượng cao: LTX-2.3 22B (video + âm thanh, tới 4K), cho máy mạnh (≥ 24 GB VRAM)
 // Chế độ nhẹ — cho máy card NVIDIA yếu (GTX 16xx, RTX 20xx, 6–8 GB VRAM) không chạy được bản đầy đủ MiniMax H3.
 // Chạy mô hình Wan 2.2 TI2V-5B (Apache-2.0) bằng ComfyUI ngay trên máy khách:
 //   <thư mục cài>/lite/  uv, python, venv, ComfyUI (bản cố định), models (~18 GB), library (video đã tạo)
@@ -17,7 +20,9 @@ const UV_VERSION = '0.9.0';
 const PYTHON = '3.12';
 // Cùng bản ComfyUI mà bản đầy đủ đang dùng (engine/freevideo_engine/dependencies.json)
 const COMFY = { commit: '421a1c245c682c04d4325ba365f40c834c66f5b0', zip: 'https://github.com/comfy-org/ComfyUI/archive/421a1c245c682c04d4325ba365f40c834c66f5b0.zip' };
-const TORCH = { index: 'https://download.pytorch.org/whl/cu126', pkgs: ['torch==2.8.0', 'torchvision==0.23.0', 'torchaudio==2.8.0'] };
+// PyTorch: cu128 cho card compute 7.5+ (gồm RTX 50), cu126 cho card cũ hơn (GTX 10xx)
+const TORCH_PKGS = ['torch==2.8.0', 'torchvision==0.23.0', 'torchaudio==2.8.0'];
+const torchIndex = (hw) => 'https://download.pytorch.org/whl/' + (hw && hw.cap && (hw.cap[0] + hw.cap[1] / 10) < 7.5 ? 'cu126' : 'cu128');
 const HF = 'https://huggingface.co/Comfy-Org/';
 const MODELS = [
   { id: 'video', name: 'Mô hình video Wan 2.2 (5B)', dir: 'diffusion_models', file: 'wan2.2_ti2v_5B_fp16.safetensors',
@@ -27,6 +32,33 @@ const MODELS = [
   { id: 'vae', name: 'Bộ giải mã video Wan 2.2', dir: 'vae', file: 'wan2.2_vae.safetensors',
     url: HF + 'Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan2.2_vae.safetensors', size: 1.41e9 },
 ];
+const LTX_MODELS = [
+  { id: 'video', name: 'Mô hình video + âm thanh LTX-2.3 (22B, fp8)', dir: 'checkpoints', file: 'ltx-2.3-22b-dev-fp8.safetensors',
+    url: 'https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors', size: 29.1e9 },
+  { id: 'text', name: 'Bộ đọc prompt Gemma 3 12B (fp8)', dir: 'text_encoders', file: 'gemma_3_12B_it_fp8_scaled.safetensors',
+    url: 'https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors', size: 13.2e9 },
+  { id: 'distilled', name: 'LoRA chạy nhanh (distilled 1.1)', dir: 'loras', file: 'ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors',
+    url: 'https://huggingface.co/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors', size: 2.74e9 },
+  { id: 'upscaler', name: 'Bộ phóng to ×2', dir: 'latent_upscale_models', file: 'ltx-2.3-spatial-upscaler-x2-1.1.safetensors',
+    url: 'https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors', size: 1.0e9 },
+];
+const LTX_NEGATIVE = 'pc game, console game, video game, cartoon, childish, ugly, blurry, low quality, distorted, watermark, text';
+// Khung hình LTX (bội số 64 để tầng 1 = nửa kích thước vẫn chia hết 32)
+const LTX_SIZES = {
+  light: { '16:9': [768, 448], '9:16': [448, 768], '1:1': [576, 576], '4:3': [704, 512], '3:4': [512, 704], '21:9': [960, 384] },
+  medium: { '16:9': [1280, 704], '9:16': [704, 1280], '1:1': [960, 960], '4:3': [1152, 832], '3:4': [832, 1152], '21:9': [1536, 640] },
+  high: { '16:9': [1920, 1088], '9:16': [1088, 1920], '1:1': [1408, 1408], '4:3': [1664, 1216], '3:4': [1216, 1664], '21:9': [2304, 960] },
+  max: { '16:9': [3840, 2176], '9:16': [2176, 3840], '1:1': [2816, 2816], '4:3': [3328, 2496], '3:4': [2496, 3328], '21:9': [4608, 1920] },
+};
+const LTX_FPS = 25;
+
+const PROFILES = {
+  lite: { id: 'lite', title: 'Chế độ nhẹ', tag: 'lite · Wan 2.2 5B', format: 'Wan 2.2 5B', models: () => MODELS, maxSeconds: 5, fps: 24,
+    sampler: ['3'], decoder: ['8'], loaders: ['37', '38'], downloadLabel: 'Đang tải mô hình Wan 2.2 (~18 GB)' },
+  pro: { id: 'pro', title: 'Chất lượng cao', tag: 'pro · LTX-2.3 22B', format: 'LTX-2.3 22B', models: () => LTX_MODELS, maxSeconds: 10, fps: LTX_FPS,
+    sampler: ['215', '219'], decoder: ['251'], loaders: ['236', '243'], downloadLabel: 'Đang tải mô hình LTX-2.3 (~46 GB)' },
+};
+
 const NEGATIVE = '色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走';
 // Khung hình theo chất lượng (Wan 2.2 5B: cạnh chia hết cho 32, số khung = 4n + 1, 24 khung/giây, tối đa 121 khung ≈ 5 giây)
 const SIZES = {
@@ -42,7 +74,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const now = () => new Date().toISOString();
 
 class LiteEngine {
-  constructor({ settings, save, emit, hardware }) {
+  constructor({ settings, save, emit, hardware, profile = 'lite' }) {
+    this.profile = PROFILES[profile] || PROFILES.lite;
     this.settings = settings;
     this.saveSettings = save;
     this.emit = emit || (() => {});
@@ -73,18 +106,18 @@ class LiteEngine {
 
   machine() {
     if (!this.root) return null;
-    try { const m = JSON.parse(fs.readFileSync(this.p('lite.json'), 'utf8')); return m && m.ready ? m : null; } catch { return null; }
+    try { const m = JSON.parse(fs.readFileSync(this.p(this.profile.id + '.json'), 'utf8')); return m && m.ready ? m : null; } catch { return null; }
   }
 
   status() {
     const machine = this.machine();
     return {
-      mode: 'lite', supported: IS_WIN || process.platform === 'linux', platform: process.platform,
+      mode: this.profile.id, supported: IS_WIN || process.platform === 'linux', platform: process.platform,
       root: this.base || this.defaultRoot(), rootChosen: Boolean(this.base), installed: Boolean(machine),
-      machine: machine ? { gpu: machine.gpu || '', backend: 'cuda', vram_gib: machine.vram_gib, ram_gib: machine.ram_gib, format: 'Wan 2.2 5B' } : null,
+      machine: machine ? { gpu: machine.gpu || '', backend: 'cuda', vram_gib: machine.vram_gib, ram_gib: machine.ram_gib, format: this.profile.format } : null,
       phase: this.state.phase, error: this.state.error || null, task: this.task ? this.task.kind : null,
       auto: this.autoState || null, progress: this.progress, groups: this.groups, url: this.url, autostart: this.cfg.autostart !== false,
-      log: this.log.slice(-60), engineTag: 'lite · Wan 2.2 5B',
+      log: this.log.slice(-60), engineTag: this.profile.tag,
     };
   }
   setPhase(phase, extra = {}) { this.state = { phase, ...extra }; this.emit('engine:status', this.status()); }
@@ -97,7 +130,7 @@ class LiteEngine {
   say(label, current) { this.progress = { label, current: current || null }; this.tick(); }
   tick() { const n = Date.now(); if (!this.lastEmit || n - this.lastEmit > 400) { this.lastEmit = n; this.emit('engine:status', this.status()); } }
 
-  async plan() { return { gpu: '', steps: ['Chế độ nhẹ: ComfyUI + Wan 2.2 5B'], download: MODELS.reduce((n, m) => n + m.size, 0) + 3.5e9, errors: [], warnings: [] }; }
+  async plan() { return { gpu: '', steps: [this.profile.title + ': ComfyUI + ' + this.profile.format], download: this.profile.models().reduce((n, m) => n + m.size, 0) + 3.5e9, errors: [], warnings: [] }; }
 
   // ---------------- Cài: uv → Python → ComfyUI → PyTorch → mô hình (chạy lại thì làm tiếp phần còn thiếu)
   async install() {
@@ -111,14 +144,14 @@ class LiteEngine {
       fs.mkdirSync(this.root, { recursive: true });
       const hw = await this.hardware();
       if (process.env.MAXAI_LITE_FAKE_INSTALL) {   // kiểm thử giao diện: giả lập cài + tải mô hình
-        const total = MODELS.reduce((n, m) => n + m.size, 0);
+        const total = this.profile.models().reduce((n, m) => n + m.size, 0);
         for (let i = 0; i <= 10; i++) {
           if (this.task.cancelled) throw new Error('Đã dừng');
           this.groups = [{ id: 'lite', state: 'downloading', total, ready: total * i / 10, speed: 50e6 }];
-          this.progress = { label: 'Đang tải mô hình Wan 2.2 (~18 GB)' }; this.tick();
+          this.progress = { label: this.profile.downloadLabel }; this.tick();
           await sleep(400);
         }
-        fs.writeFileSync(this.p('lite.json'), JSON.stringify({ ready: true, at: now(), gpu: hw.gpu || '', vram_gib: 6, ram_gib: 16 }));
+        fs.writeFileSync(this.p(this.profile.id + '.json'), JSON.stringify({ ready: true, at: now(), gpu: hw.gpu || '', vram_gib: 6, ram_gib: 16 }));
         this.progress = null; this.groups = null; this.setPhase('installed');
         return this.status();
       }
@@ -134,13 +167,13 @@ class LiteEngine {
       const comfyDir = await this.ensureComfy();
       if (!fs.existsSync(this.p('.deps-ok'))) {
         this.say('Đang cài PyTorch (CUDA) — khoảng 2,5 GB', null);
-        await this.run(uv, ['pip', 'install', '--python', this.python(), ...TORCH.pkgs, '--index-url', TORCH.index], { env, onLine: (l) => this.depLine(l) });
+        await this.run(uv, ['pip', 'install', '--python', this.python(), ...TORCH_PKGS, '--index-url', torchIndex(hw)], { env, onLine: (l) => this.depLine(l) });
         this.say('Đang cài thư viện của ComfyUI');
         await this.run(uv, ['pip', 'install', '--python', this.python(), '-r', path.join(comfyDir, 'requirements.txt')], { env, onLine: (l) => this.depLine(l) });
         fs.writeFileSync(this.p('.deps-ok'), now());
       }
       await this.downloadModels(comfyDir);
-      fs.writeFileSync(this.p('lite.json'), JSON.stringify({ ready: true, at: now(), comfy: COMFY.commit, gpu: hw.gpu || '',
+      fs.writeFileSync(this.p(this.profile.id + '.json'), JSON.stringify({ ready: true, at: now(), comfy: COMFY.commit, gpu: hw.gpu || '',
         vram_gib: hw.vram ? Math.round(hw.vram / 1024 ** 3) : null, ram_gib: hw.ram ? Math.round(hw.ram / 1024 ** 3) : null }));
       this.progress = null; this.groups = null;
       this.setPhase('installed');
@@ -212,6 +245,7 @@ class LiteEngine {
   }
 
   async downloadModels(comfyDir) {
+    const MODELS = this.profile.models();
     const total = MODELS.reduce((n, m) => n + m.size, 0);
     const state = MODELS.map((m) => {
       const target = path.join(comfyDir, 'models', m.dir, m.file);
@@ -221,7 +255,7 @@ class LiteEngine {
     });
     const publish = (speed) => {
       this.groups = [{ id: 'lite', state: 'downloading', total, ready: state.reduce((n, s) => n + Math.min(s.have, s.m.size), 0), speed }];
-      this.progress = { label: 'Đang tải mô hình Wan 2.2 (~18 GB)', current: null };
+      this.progress = { label: this.profile.downloadLabel, current: null };
       this.tick();
     };
     publish(0);
@@ -366,7 +400,7 @@ class LiteEngine {
 
   setAutostart(v) { this.cfg.autostart = Boolean(v); this.saveSettings(); return this.status(); }
   async packs() { return []; }
-  async packAction() { throw new Error('Chế độ nhẹ không có gói mô hình thêm.'); }
+  async packAction() { throw new Error(this.profile.title + ' không có gói mô hình thêm.'); }
 
   auto() {
     if (this.autoTask) return this.status();
@@ -406,32 +440,47 @@ class LiteEngine {
   caps() {
     const running = [...this.jobs.values()].filter((j) => j.status === 'running').length;
     const pending = [...this.jobs.values()].filter((j) => j.status === 'queued').length;
-    return { api_version: 1, freevideo_version: 'lite', lite: true, ready: true, problem: null, continuation: false,
-      features: { plan: true, enhance: false, takes: false, lite: true },
-      device: { backend: 'cuda' }, limits: { width: [256, 1472, 32], height: [256, 1472, 32], seconds: [1, MAX_SECONDS], fps: 24, takes: 1 },
-      quality: { light: { two_pass: false, base_steps: STEPS.light }, medium: { two_pass: false, base_steps: STEPS.medium },
-        high: { two_pass: false, base_steps: STEPS.high }, max: { two_pass: false, base_steps: STEPS.max } },
-      aspects: Object.keys(SIZES.light), loras: [], vlm: { ready: false }, queue: { running, pending, agent_active: running + pending } };
+    const pro = this.profile.id === 'pro';
+    const sizes = pro ? LTX_SIZES : SIZES;
+    const steps = (q) => (pro ? 11 : STEPS[q]);
+    return { api_version: 1, freevideo_version: this.profile.id, lite: !pro, pro, video_only: true, engine_mode: this.profile.id, engine_title: this.profile.title,
+      ready: true, problem: null, continuation: false,
+      features: { plan: true, enhance: false, takes: false, lite: !pro, audio: pro },
+      device: { backend: 'cuda' }, limits: { width: [256, 4608, 32], height: [256, 4608, 32], seconds: [1, this.profile.maxSeconds], fps: this.profile.fps, takes: 1 },
+      quality: Object.fromEntries(['light', 'medium', 'high', 'max'].map((q) => [q, { two_pass: pro, base_steps: steps(q) }])),
+      aspects: Object.keys(sizes.light), loras: [], vlm: { ready: false }, queue: { running, pending, agent_active: running + pending } };
   }
 
   geometry(spec) {
-    const quality = SIZES[spec.quality] ? spec.quality : 'medium';
-    const [width, height] = SIZES[quality][spec.aspect] || SIZES[quality]['16:9'];
-    const seconds = Math.min(MAX_SECONDS, Math.max(1, Number(spec.seconds) || MAX_SECONDS));
-    const frames = Math.min(121, Math.round(seconds * 24 / 4) * 4 + 1);
-    return { width, height, frames, seconds: frames / 24, fps: 24, steps: STEPS[quality] };
+    const pro = this.profile.id === 'pro';
+    const table = pro ? LTX_SIZES : SIZES;
+    const quality = table[spec.quality] ? spec.quality : 'medium';
+    const [width, height] = table[quality][spec.aspect] || table[quality]['16:9'];
+    const max = this.profile.maxSeconds, fps = this.profile.fps;
+    const seconds = Math.min(max, Math.max(1, Number(spec.seconds) || max));
+    // Wan: 4n + 1 khung (≤ 121); LTX: 8n + 1 khung
+    const frames = pro ? Math.round(seconds * fps / 8) * 8 + 1 : Math.min(121, Math.round(seconds * fps / 4) * 4 + 1);
+    return { width, height, frames, seconds: frames / fps, fps, steps: pro ? 11 : STEPS[quality], quality };
   }
 
   planOf(spec) {
     if (typeof spec.prompt !== 'string' || !cleanPrompt(spec.prompt)) return [422, { error: { code: 'invalid_request', message: 'prompt is required', next: 'Hãy viết prompt.' } }];
     const g = this.geometry(spec);
+    const t = this.profile.title, max = this.profile.maxSeconds;
     const warnings = [];
-    if (Number(spec.seconds) > MAX_SECONDS) warnings.push('Chế độ nhẹ tạo tối đa ' + MAX_SECONDS + ' giây mỗi video — video sẽ được cắt còn ' + MAX_SECONDS + ' giây.');
-    if (spec.media && (spec.media.last || (spec.media.references || []).length)) warnings.push('Chế độ nhẹ chỉ dùng ảnh mở đầu; ảnh kết thúc và tham chiếu được bỏ qua.');
-    const px = g.width * g.height / (832 * 480);
-    const estimate = Math.round(40 + g.frames * g.steps * px * 0.35);
-    return [200, { spec, warnings, geometry: { width: g.width, height: g.height, frames: g.frames, seconds: g.seconds, fps: 24 },
-      sampling: { two_pass: false, total_steps: g.steps }, chain_plan: { blocks: 1 }, estimate: { status: 'ready', seconds: estimate } }];
+    if (Number(spec.seconds) > max) warnings.push(t + ' tạo tối đa ' + max + ' giây mỗi video — video sẽ được cắt còn ' + max + ' giây.');
+    if (spec.media && (spec.media.last || (spec.media.references || []).length)) warnings.push(t + ' chỉ dùng ảnh mở đầu; ảnh kết thúc và tham chiếu được bỏ qua.');
+    let estimate;
+    if (this.profile.id === 'pro') {
+      const px = g.width * g.height / (1280 * 704);
+      estimate = Math.round(60 + g.frames * px * 1.1);
+      if (g.quality === 'max') warnings.push('4K cần card 32 GB VRAM trở lên và rất lâu — nếu báo hết bộ nhớ, chọn chất lượng Cao (1080p).');
+    } else {
+      const px = g.width * g.height / (832 * 480);
+      estimate = Math.round(40 + g.frames * g.steps * px * 0.35);
+    }
+    return [200, { spec, warnings, geometry: { width: g.width, height: g.height, frames: g.frames, seconds: g.seconds, fps: g.fps },
+      sampling: { two_pass: this.profile.id === 'pro', total_steps: g.steps }, chain_plan: { blocks: 1 }, estimate: { status: 'ready', seconds: estimate } }];
   }
 
   async handle(req, res) {
@@ -468,7 +517,7 @@ class LiteEngine {
         return fs.existsSync(file) ? sendFile(req, res, file, { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }[ext] || 'application/octet-stream') : send(res, 404, {});
       }
       if (route === '/cast' || route === '/imports' || route === '/queue') return send(res, 200, { items: [], cast: [] });
-      return send(res, 404, { error: { code: 'lite_unsupported', message: 'Chức năng này không có ở chế độ nhẹ.' } });
+      return send(res, 404, { error: { code: 'lite_unsupported', message: 'Chức năng này không có ở ' + this.profile.title.toLowerCase() + '.' } });
     }
     if (req.method === 'POST') {
       if (route === '/media') return this.upload(req, res);
@@ -479,7 +528,7 @@ class LiteEngine {
         const made = [];
         for (const spec of specs) {
           if ((spec.kind || 'generate') !== 'generate' || spec.refine_from || spec.continue_from) {
-            return send(res, 422, { error: { code: 'lite_unsupported', message: 'Chế độ nhẹ chỉ tạo video mới từ prompt (và ảnh mở đầu).' } });
+            return send(res, 422, { error: { code: 'lite_unsupported', message: this.profile.title + ' chỉ tạo video mới từ prompt (và ảnh mở đầu).' } });
           }
           const [s, v] = this.planOf(spec);
           if (s !== 200) return send(res, s, v);
@@ -513,7 +562,7 @@ class LiteEngine {
     if (!part) return send(res, 400, { error: { code: 'invalid_media', message: 'Thiếu file' } });
     const name = (part.match(/filename="([^"]*)"/) || [])[1] || 'media.png';
     const ext = path.extname(name).toLowerCase();
-    if (!['.png', '.jpg', '.jpeg', '.webp'].includes(ext)) return send(res, 415, { error: { code: 'unsupported_media', message: 'Chế độ nhẹ chỉ nhận ảnh (PNG, JPG, WEBP).' } });
+    if (!['.png', '.jpg', '.jpeg', '.webp'].includes(ext)) return send(res, 415, { error: { code: 'unsupported_media', message: this.profile.title + ' chỉ nhận ảnh (PNG, JPG, WEBP).' } });
     const start = part.indexOf('\r\n\r\n') + 4;
     const data = Buffer.from(part.slice(start, part.length - 2), 'latin1');
     const file = crypto.randomBytes(12).toString('hex') + ext;
@@ -566,8 +615,10 @@ class LiteEngine {
     const run = crypto.randomBytes(16).toString('hex');
     const seed = Number.isFinite(Number(job.spec.seed)) && job.spec.seed !== undefined ? Number(job.spec.seed) : crypto.randomInt(0, 2 ** 31);
     const first = job.spec.media && job.spec.media.first && job.spec.media.first.file;
-    const graph = workflow({ prompt: cleanPrompt(job.spec.prompt), width: g.width, height: g.height, frames: g.frames, steps: g.steps, seed, run,
-      image: first ? String(first).replace(/^.*?maxai\//, 'maxai/') : null, fp8: await this.lowVram() });
+    const image = first ? String(first).replace(/^.*?maxai\//, 'maxai/') : null;
+    const graph = this.profile.id === 'pro'
+      ? ltxWorkflow({ prompt: cleanPrompt(job.spec.prompt), width: g.width, height: g.height, frames: g.frames, fps: g.fps, seed, run, image })
+      : workflow({ prompt: cleanPrompt(job.spec.prompt), width: g.width, height: g.height, frames: g.frames, steps: g.steps, seed, run, image, fp8: await this.lowVram() });
     try {
       const r = await fetch(this.comfyUrl + '/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: graph, client_id: 'maxai' }) });
       const data = await r.json().catch(() => ({}));
@@ -663,15 +714,21 @@ class LiteEngine {
         const d = m.data || {};
         const job = [...this.jobs.values()].find((j) => j.prompt_id && j.prompt_id === d.prompt_id && j.status === 'running');
         if (!job) return;
+        const P = this.profile;
         if (m.type === 'progress' && d.max) {
           const f = d.value / d.max;
-          const node = job.node;
-          if (node === '3') job.progress = { phase: 'sampling', fraction: 0.1 + f * 0.8, step: { done: d.value, total: d.max } };
-          else job.progress = { phase: node === '8' ? 'decoding' : 'loading', fraction: node === '8' ? 0.9 + f * 0.09 : 0.05 };
+          const node = String(job.node);
+          const si = P.sampler.indexOf(node);
+          if (si >= 0) {
+            // nhiều tầng lấy mẫu (LTX: tầng 1 nửa kích thước 8 bước, tầng 2 đủ kích thước 3 bước)
+            const share = 0.8 / P.sampler.length;
+            job.progress = { phase: 'sampling', fraction: 0.1 + si * share + f * share, step: { done: d.value, total: d.max }, pass: P.sampler.length > 1 ? si + 1 : undefined };
+          } else if (P.decoder.includes(node)) job.progress = { phase: 'decoding', fraction: 0.9 + f * 0.09 };
+          else job.progress = { phase: 'loading', fraction: 0.05 };
         } else if (m.type === 'executing') {
           job.node = d.node;
-          if (d.node === '8') job.progress = { phase: 'decoding', fraction: 0.92 };
-          else if (d.node === '37' || d.node === '38') job.progress = { phase: 'loading', fraction: 0.04 };
+          if (P.decoder.includes(String(d.node))) job.progress = { phase: 'decoding', fraction: 0.92 };
+          else if (P.loaders.includes(String(d.node))) job.progress = { phase: 'loading', fraction: 0.04 };
         }
       };
       ws.onclose = () => { if (this.ws === ws) { this.ws = null; if (this.comfyUrl) setTimeout(() => this.listen(), 3000); } };
@@ -759,6 +816,58 @@ function workflow({ prompt, width, height, frames, steps, seed, run, image, fp8 
   return g;
 }
 
+// Workflow LTX-2.3 (định dạng API) — theo mẫu chính thức "LTX-2.3 T2V / I2V" của ComfyUI:
+// tầng 1 ở nửa kích thước (8 bước, LoRA distilled), phóng to ×2 trong không gian ẩn, tầng 2 đủ kích thước (3 bước), âm thanh tạo cùng lượt
+function ltxWorkflow({ prompt, width, height, frames, fps, seed, run, image }) {
+  const ckpt = 'ltx-2.3-22b-dev-fp8.safetensors';
+  const bypass = !image;
+  const g = {
+    236: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: ckpt } },
+    243: { class_type: 'LTXAVTextEncoderLoader', inputs: { text_encoder: 'gemma_3_12B_it_fp8_scaled.safetensors', ckpt_name: ckpt, device: 'default' } },
+    221: { class_type: 'LTXVAudioVAELoader', inputs: { ckpt_name: ckpt } },
+    232: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['236', 0], lora_name: 'ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors', strength_model: 0.5 } },
+    233: { class_type: 'LatentUpscaleModelLoader', inputs: { model_name: 'ltx-2.3-spatial-upscaler-x2-1.1.safetensors' } },
+    240: { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['243', 0] } },
+    247: { class_type: 'CLIPTextEncode', inputs: { text: LTX_NEGATIVE, clip: ['243', 0] } },
+    239: { class_type: 'LTXVConditioning', inputs: { positive: ['240', 0], negative: ['247', 0], frame_rate: fps } },
+    235: { class_type: 'ResizeImagesByLongerEdge', inputs: { images: image ? ['238', 0] : ['325', 0], longer_edge: 1536 } },
+    248: { class_type: 'LTXVPreprocess', inputs: { image: ['235', 0], img_compression: 18 } },
+    228: { class_type: 'EmptyLTXVLatentVideo', inputs: { width: width / 2, height: height / 2, length: frames, batch_size: 1 } },
+    249: { class_type: 'LTXVImgToVideoInplace', inputs: { vae: ['236', 2], image: ['248', 0], latent: ['228', 0], strength: 0.7, bypass } },
+    214: { class_type: 'LTXVEmptyLatentAudio', inputs: { frames_number: frames, frame_rate: fps, batch_size: 1, audio_vae: ['221', 0] } },
+    222: { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['249', 0], audio_latent: ['214', 0] } },
+    237: { class_type: 'RandomNoise', inputs: { noise_seed: seed } },
+    231: { class_type: 'CFGGuider', inputs: { model: ['232', 0], positive: ['239', 0], negative: ['239', 1], cfg: 1 } },
+    209: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    252: { class_type: 'ManualSigmas', inputs: { sigmas: '1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0' } },
+    215: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['237', 0], guider: ['231', 0], sampler: ['209', 0], sigmas: ['252', 0], latent_image: ['222', 0] } },
+    217: { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['215', 0] } },
+    253: { class_type: 'LTXVLatentUpsampler', inputs: { samples: ['217', 0], upscale_model: ['233', 0], vae: ['236', 2] } },
+    230: { class_type: 'LTXVImgToVideoInplace', inputs: { vae: ['236', 2], image: ['248', 0], latent: ['253', 0], strength: 1, bypass } },
+    229: { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['230', 0], audio_latent: ['217', 1] } },
+    212: { class_type: 'LTXVCropGuides', inputs: { positive: ['239', 0], negative: ['239', 1], latent: ['217', 0] } },
+    213: { class_type: 'CFGGuider', inputs: { model: ['232', 0], positive: ['212', 0], negative: ['212', 1], cfg: 1 } },
+    216: { class_type: 'RandomNoise', inputs: { noise_seed: (seed + 1) % 2 ** 31 } },
+    246: { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    211: { class_type: 'ManualSigmas', inputs: { sigmas: '0.85, 0.7250, 0.4219, 0.0' } },
+    219: { class_type: 'SamplerCustomAdvanced', inputs: { noise: ['216', 0], guider: ['213', 0], sampler: ['246', 0], sigmas: ['211', 0], latent_image: ['229', 0] } },
+    218: { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['219', 0] } },
+    251: { class_type: 'VAEDecodeTiled', inputs: { samples: ['218', 0], vae: ['236', 2], tile_size: 768, overlap: 64, temporal_size: 4096, temporal_overlap: 4 } },
+    220: { class_type: 'LTXVAudioVAEDecode', inputs: { samples: ['218', 1], audio_vae: ['221', 0] } },
+    242: { class_type: 'CreateVideo', inputs: { images: ['251', 0], audio: ['220', 0], fps } },
+    75: { class_type: 'SaveVideo', inputs: { video: ['242', 0], filename_prefix: 'maxai/' + run, format: 'auto', codec: 'auto' } },
+    60: { class_type: 'ImageFromBatch', inputs: { image: ['251', 0], batch_index: 0, length: 1 } },
+    61: { class_type: 'SaveImage', inputs: { images: ['60', 0], filename_prefix: 'maxai/' + run + '_thumb' } },
+  };
+  if (image) {
+    g[56] = { class_type: 'LoadImage', inputs: { image } };
+    g[238] = { class_type: 'ResizeImageMaskNode', inputs: { input: ['56', 0], resize_type: 'scale dimensions', 'resize_type.width': width, 'resize_type.height': height, 'resize_type.crop': 'center', scale_method: 'lanczos' } };
+  } else {
+    g[325] = { class_type: 'EmptyImage', inputs: { width, height, batch_size: 1, color: 0 } };
+  }
+  return g;
+}
+
 // Prompt H3 ("integrated_multimodal_description: …") → câu mô tả thường cho Wan
 function cleanPrompt(text) {
   return String(text || '')
@@ -810,4 +919,4 @@ function killTree(child) {
   } catch { /* đã thoát */ }
 }
 
-module.exports = { LiteEngine, workflow, cleanPrompt, MODELS, COMFY };
+module.exports = { LiteEngine, workflow, ltxWorkflow, cleanPrompt, MODELS, LTX_MODELS, COMFY, PROFILES };

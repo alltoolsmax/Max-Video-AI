@@ -3,6 +3,7 @@
 
 const HW = { info: null, loading: null };
 const HW_TIER = {
+  pro: ['Máy mạnh — chạy được mọi chế độ', 'ok', 'rocket_launch', 'Bản đầy đủ MiniMax H3 (đủ mọi chức năng) và Chất lượng cao LTX-2.3 (video có âm thanh tới 4K).'],
   full: ['Chạy được bản đầy đủ', 'ok', 'verified', 'MiniMax H3 — video tới 15 giây, có âm thanh, đủ mọi chức năng.'],
   lite: ['Chạy được chế độ nhẹ', 'warn', 'speed', 'Wan 2.2 (5B) — video tới 5 giây, chưa có âm thanh; Tạo ảnh, Sửa ảnh, Lồng tiếng, Phụ đề, Autopilot cần bản đầy đủ.'],
   none: ['Máy không đủ để tạo video', 'err', 'block', 'Mô hình tạo video cần card NVIDIA từ 6 GB VRAM và 16 GB RAM (hoặc Mac chip Apple 16 GB).'],

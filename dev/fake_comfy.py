@@ -10,7 +10,11 @@ ap.add_argument('--disable-auto-launch', action='store_true'); ap.add_argument('
 a = ap.parse_args()
 OUT = Path.cwd() / 'output'
 JOBS, ORDER, HIST, LOCK = {}, [], {}, threading.Lock()
-NEED = {'UNETLoader', 'CLIPLoader', 'VAELoader', 'ModelSamplingSD3', 'CLIPTextEncode', 'Wan22ImageToVideoLatent', 'KSampler', 'VAEDecode', 'CreateVideo', 'SaveVideo', 'ImageFromBatch', 'SaveImage', 'LoadImage'}
+NEED = {'UNETLoader', 'CLIPLoader', 'VAELoader', 'ModelSamplingSD3', 'CLIPTextEncode', 'Wan22ImageToVideoLatent', 'KSampler', 'VAEDecode', 'CreateVideo', 'SaveVideo', 'ImageFromBatch', 'SaveImage', 'LoadImage',
+        'CheckpointLoaderSimple', 'LTXAVTextEncoderLoader', 'LTXVAudioVAELoader', 'LoraLoaderModelOnly', 'LatentUpscaleModelLoader', 'LTXVConditioning', 'ResizeImagesByLongerEdge',
+        'LTXVPreprocess', 'EmptyLTXVLatentVideo', 'LTXVImgToVideoInplace', 'LTXVEmptyLatentAudio', 'LTXVConcatAVLatent', 'RandomNoise', 'CFGGuider', 'KSamplerSelect', 'ManualSigmas',
+        'SamplerCustomAdvanced', 'LTXVSeparateAVLatent', 'LTXVLatentUpsampler', 'LTXVCropGuides', 'VAEDecodeTiled', 'LTXVAudioVAEDecode', 'EmptyImage', 'ResizeImageMaskNode'}
+def find(g, t): return next((k for k, n in g.items() if n['class_type'] == t), None)
 
 def work():
     while True:
@@ -22,11 +26,13 @@ def work():
                 ORDER.pop(0); HIST[pid] = dict(status=dict(status_str='error', completed=False, messages=[['execution_interrupted', {}]]), outputs={}); continue
             if time.time() - j['t0'] < 6: continue
             ORDER.pop(0)
-        g = j['graph']; run = g['58']['inputs']['filename_prefix']
-        w, h = g['55']['inputs']['width'], g['55']['inputs']['height']
+        g = j['graph']; run = g[find(g, 'SaveVideo')]['inputs']['filename_prefix']
+        if find(g, 'Wan22ImageToVideoLatent'): w, h = g[find(g, 'Wan22ImageToVideoLatent')]['inputs']['width'], g[find(g, 'Wan22ImageToVideoLatent')]['inputs']['height']
+        else: w, h = g[find(g, 'EmptyLTXVLatentVideo')]['inputs']['width'] * 2, g[find(g, 'EmptyLTXVLatentVideo')]['inputs']['height'] * 2
+        text = next(n['inputs']['text'] for n in g.values() if n['class_type'] == 'CLIPTextEncode')
         sub = os.path.dirname(run); name = os.path.basename(run)
         (OUT / sub).mkdir(parents=True, exist_ok=True)
-        if 'oom' in g['6']['inputs']['text']:
+        if 'oom' in text:
             HIST[pid] = dict(status=dict(status_str='error', completed=False, messages=[['execution_error', {'exception_message': 'CUDA error: out of memory'}]]), outputs={}); continue
         subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=%dx%d:rate=24' % (w, h), '-t', '2', '-pix_fmt', 'yuv420p', '-y', str(OUT / sub / (name + '_00001_.mp4'))], check=True)
         subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=%dx%d' % (w, h), '-frames:v', '1', '-y', str(OUT / sub / (name + '_thumb_00001_.png'))], check=True)
@@ -51,8 +57,8 @@ class H(BaseHTTPRequestHandler):
         if self.path == '/prompt':
             g = body.get('prompt') or {}
             bad = [k for k, n in g.items() if n.get('class_type') not in NEED]
-            if bad or '58' not in g: return self.js(400, dict(error=dict(message='invalid prompt'), node_errors={k: 'unknown' for k in bad}))
-            if '56' in g and not (Path.cwd() / 'input' / g['56']['inputs']['image']).is_file():
+            if bad or not find(g, 'SaveVideo'): return self.js(400, dict(error=dict(message='invalid prompt'), node_errors={k: 'unknown' for k in bad}))
+            if '56' in g and g['56']['class_type'] == 'LoadImage' and not (Path.cwd() / 'input' / g['56']['inputs']['image']).is_file():
                 return self.js(400, dict(error=dict(message='image missing'), node_errors={'56': 'missing'}))
             pid = uuid.uuid4().hex
             with LOCK: JOBS[pid] = dict(graph=g, t0=time.time()); ORDER.append(pid)

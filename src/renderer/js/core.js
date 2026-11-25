@@ -183,7 +183,7 @@ function renderLiteBlocked(root, title) {
   App.current = { render() {}, leave() {} };
   root.append(h('div', { class: 'page' }, h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, title || ''))),
     h('div', { class: 'card' }, h('div', { class: 'empty' }, icon('speed'), h('h3', {}, 'Chức năng này cần bản đầy đủ'),
-      h('div', {}, 'Máy đang chạy chế độ nhẹ (Wan 2.2 5B) — chỉ có Tạo video. ' + (title || 'Chức năng này') + ' cần bản đầy đủ MiniMax H3 (card NVIDIA RTX 30 trở lên, 8 GB VRAM, hoặc Mac chip Apple).'),
+      h('div', {}, 'Máy đang chạy ' + ((App.caps && App.caps.engine_title) || 'chế độ nhẹ').toLowerCase() + ' — chỉ có Tạo video. ' + (title || 'Chức năng này') + ' cần bản đầy đủ MiniMax H3 (đổi ở Engine & mô hình).'),
       h('div', { class: 'row', style: { justifyContent: 'center', marginTop: '12px' } },
         h('button', { class: 'btn btn-primary', onclick: () => navigate('video') }, icon('movie'), 'Tạo video'),
         h('button', { class: 'btn btn-outline', onclick: () => navigate('engine') }, icon('memory'), 'Engine & mô hình'))))));
@@ -202,7 +202,7 @@ function navigate(route, params) {
   App.currentRoute = route;
   const title = { video: 'Tạo video', image: 'Tạo ảnh', queue: 'Hàng đợi', library: 'Thư viện', settings: 'Cài đặt', engine: 'Engine & mô hình', soon: 'Sắp có', edit: 'Sửa ảnh', cast: 'Kho ảnh tham chiếu', autopilot: 'Autopilot', dubbing: 'Lồng tiếng', subtitles: 'Phụ đề' }[name];
   if ($('#pageTitle')) $('#pageTitle').textContent = title || '';
-  if (App.caps && App.caps.lite && LITE_BLOCKED.has(name)) { renderLiteBlocked(content, title); return; }
+  if (App.caps && (App.caps.lite || App.caps.video_only) && LITE_BLOCKED.has(name)) { renderLiteBlocked(content, title); return; }
   page.render(content, Object.assign({ sub }, params || {}));
 }
 
@@ -272,6 +272,15 @@ function setConnected(ok, error) {
   App.emit('connection', { ok, error });
   if (changed && ok) refreshCaps();
 }
+// Đổi chế độ (đầy đủ / nhẹ / chất lượng cao) → engine mới ở địa chỉ khác: đọc lại khả năng của engine
+let lastEngineUrl = null;
+App.on('engine', (st) => {
+  if (st && st.phase === 'running' && st.url && st.url !== lastEngineUrl) {
+    const first = lastEngineUrl === null;
+    lastEngineUrl = st.url;
+    if (!first || App.connected) { refreshCaps(); Poller.soon(0); }
+  }
+});
 async function refreshCaps() {
   try {
     App.caps = await api('GET', '');

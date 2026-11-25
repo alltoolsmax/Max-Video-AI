@@ -177,15 +177,19 @@ registerPage('video', (() => {
   }
   // Chế độ nhẹ: video tối đa 5 giây, không có bản xem trước / hoàn thiện
   function applyLite() {
-    const lite = Boolean(App.caps && App.caps.lite);
+    const c = App.caps || {};
+    const lite = Boolean(c.lite || c.video_only);
+    const max = (c.limits && c.limits.seconds && c.limits.seconds[1]) || 5;
+    const link = h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Engine & mô hình');
     if (els.liteBanner) {
       els.liteBanner.innerHTML = '';
-      if (lite) els.liteBanner.append(h('div', { class: 'lite-banner' }, icon('speed', 'fill'), h('div', {}, h('b', {}, 'Chế độ nhẹ (Wan 2.2 5B): '),
-        'video tối đa 5 giây, chưa có âm thanh, chỉ dùng ảnh mở đầu. Máy có card RTX 30 trở lên thì chuyển sang bản đầy đủ ở ',
-        h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Engine & mô hình'), '.')));
+      if (c.pro) els.liteBanner.append(h('div', { class: 'lite-banner pro' }, icon('high_quality', 'fill'), h('div', {}, h('b', {}, 'Chất lượng cao (LTX-2.3): '),
+        'video tới ' + max + ' giây có âm thanh, chất lượng Cao = 1080p, Tối đa = 4K; chỉ dùng ảnh mở đầu. Đổi chế độ ở ', link, '.')));
+      else if (lite) els.liteBanner.append(h('div', { class: 'lite-banner' }, icon('speed', 'fill'), h('div', {}, h('b', {}, 'Chế độ nhẹ (Wan 2.2 5B): '),
+        'video tối đa ' + max + ' giây, chưa có âm thanh, chỉ dùng ảnh mở đầu. Máy có card RTX 30 trở lên thì chuyển sang bản đầy đủ ở ', link, '.')));
     }
     for (const el of [els.previewBtn, els.previewHelp]) if (el) el.style.display = lite ? 'none' : '';
-    if (lite && Number(state.seconds) > 5) { state.seconds = 5; if (els.duration && els.duration.setValue) els.duration.setValue(5); }
+    if (lite && Number(state.seconds) > max) { state.seconds = max; if (els.duration && els.duration.setValue) els.duration.setValue(max); }
   }
   function countLines() {
     const n = promptLines().length;

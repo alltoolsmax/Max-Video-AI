@@ -76,7 +76,7 @@ const LocalAI = (() => {
     invalid_prompt: 'Prompt quá dài hoặc đang trống.',
     expired: 'Kết quả đã hết hạn — bấm lại.',
     setup_required: 'Engine chưa cài xong.',
-    lite_mode: 'Chế độ nhẹ chưa có AI viết prompt trên máy — chọn ChatGPT ở thanh chọn AI.',
+    lite_mode: 'Chế độ này chưa có AI viết prompt trên máy (cần bản đầy đủ) — chọn ChatGPT ở thanh chọn AI.',
   };
   const fail = (code) => Object.assign(new Error(MSG[code] || ('AI trên máy lỗi: ' + code)), { code });
 

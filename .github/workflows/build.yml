@@ -88,7 +88,7 @@ jobs:
           if [ "${{ matrix.name }}" = "win" ]; then D=dist/downloads; else D=dist/downloads-mac; fi
           gh release upload "$TAG" $D/* --clobber
 
-  # Chế độ nhẹ: kiểm tra workflow Wan 2.2 5B với ComfyUI thật (CPU, mô hình rỗng — chỉ kiểm tra node & tham số)
+  # Chế độ nhẹ + Chất lượng cao: kiểm tra workflow Wan 2.2 5B và LTX-2.3 với ComfyUI thật (CPU, mô hình rỗng — chỉ kiểm tra node & tham số)
   lite-check:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -107,8 +107,9 @@ jobs:
           unzip -q comfy.zip && mv ComfyUI-$C comfy
           pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install -q -r comfy/requirements.txt
-          mkdir -p comfy/models/diffusion_models comfy/models/text_encoders comfy/models/vae comfy/input/maxai
+          mkdir -p comfy/models/diffusion_models comfy/models/text_encoders comfy/models/vae comfy/models/checkpoints comfy/models/loras comfy/models/latent_upscale_models comfy/input/maxai
           touch comfy/models/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors comfy/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors comfy/models/vae/wan2.2_vae.safetensors
+          node -e "for (const m of require('./src/main/lite').LTX_MODELS) require('fs').writeFileSync('comfy/models/' + m.dir + '/' + m.file, '')"
           python -c "from PIL import Image; Image.new('RGB',(64,64),'red').save('comfy/input/maxai/start.png')"
       - name: Gửi workflow chế độ nhẹ
         run: |

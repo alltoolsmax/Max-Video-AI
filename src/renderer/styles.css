@@ -655,3 +655,6 @@ body.nav-collapsed .lic-chip span:not(.ms) { display: none; }
 .mode-opt b { display: flex; align-items: center; gap: 8px; } .mode-opt small { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
 .lite-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .35); margin-bottom: 14px; font-size: 13px; }
 .lite-banner .ms { color: var(--warn); }
+.lite-banner.pro { background: rgba(139, 92, 246, .12); border-color: rgba(139, 92, 246, .4); }
+.lite-banner.pro .ms { color: var(--accent2, #8b5cf6); }
+.mode-pick.three { grid-template-columns: repeat(3, 1fr); }

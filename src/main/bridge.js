@@ -36,12 +36,14 @@ class Bridge {
     this.fullEngine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
     // Chế độ nhẹ (Wan 2.2 5B qua ComfyUI) cho máy card NVIDIA yếu — chọn tự động theo kết quả kiểm tra máy
     this.liteEngine = new LiteEngine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p), hardware: () => hardware.check() });
+    // Chất lượng cao (LTX-2.3 22B, video + âm thanh tới 4K) cho máy mạnh ≥ 24 GB VRAM — dùng chung ComfyUI với chế độ nhẹ
+    this.proEngine = new LiteEngine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p), hardware: () => hardware.check(), profile: 'pro' });
     this.gpt = new Gpt({ settings: this.settings, save: () => this.save() });
     this.ready = null;
   }
 
   get mode() { return (this.settings.engine && this.settings.engine.mode) || 'full'; }
-  get engine() { return this.mode === 'lite' ? this.liteEngine : this.fullEngine; }
+  get engine() { return this.mode === 'lite' ? this.liteEngine : this.mode === 'pro' ? this.proEngine : this.fullEngine; }
 
   // Chọn chế độ theo máy (lần đầu): đủ mạnh → bản đầy đủ, card yếu → chế độ nhẹ, không đủ → không tự cài gì
   async chooseMode() {
@@ -51,14 +53,14 @@ class Bridge {
     // Máy đã cài bản đầy đủ từ trước thì giữ nguyên
     if (this.fullEngine.root && this.fullEngine.machine()) cfg.mode = 'full';
     else if (hw.tier === 'lite') cfg.mode = 'lite';
-    else if (hw.tier === 'full' || hw.tier === 'unknown') cfg.mode = 'full';
+    else if (hw.tier === 'full' || hw.tier === 'pro' || hw.tier === 'unknown') cfg.mode = 'full';
     else return 'none';
     this.save();
     return cfg.mode;
   }
 
   async setMode(mode) {
-    if (!['full', 'lite'].includes(mode)) throw new Error('Chế độ không hợp lệ');
+    if (!['full', 'lite', 'pro'].includes(mode)) throw new Error('Chế độ không hợp lệ');
     if (mode === this.mode && this.settings.engine && this.settings.engine.mode) return this.engine.status();
     const old = this.engine;
     try { old.cancel(); } catch { /* bỏ qua */ }
@@ -105,7 +107,7 @@ class Bridge {
 
   // Đóng Max Video AI: tắt engine và dừng việc cài đang chạy (chạy lại sẽ tải tiếp).
   async shutdown() {
-    for (const e of [this.fullEngine, this.liteEngine]) {
+    for (const e of [this.fullEngine, this.liteEngine, this.proEngine]) {
       try { e.cancel(); } catch { /* bỏ qua */ }
       try { await e.stop(); } catch { /* bỏ qua */ }
     }

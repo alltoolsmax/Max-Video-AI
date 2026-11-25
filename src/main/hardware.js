@@ -1,6 +1,7 @@
 'use strict';
 // Kiểm tra nhanh máy khách (không cài gì, vài giây): card đồ hoạ, VRAM, RAM → máy chạy được mức nào.
 //   full : bản đầy đủ MiniMax H3 (FreeVideo) — NVIDIA RTX 30 trở lên (compute 8.0+) ≥ 8 GB VRAM + ≥ 16 GB RAM, hoặc Mac chip Apple ≥ 16 GB
+//   pro  : máy mạnh — chạy được cả bản đầy đủ lẫn Chất lượng cao LTX-2.3 (NVIDIA RTX 30+ ≥ 24 GB VRAM + ≥ 32 GB RAM)
 //   lite : chế độ nhẹ Wan 2.2 5B (ComfyUI) — NVIDIA ≥ 6 GB VRAM (GTX 16xx, RTX 20xx…) + ≥ 16 GB RAM
 //   none : không đủ để tạo video trên máy này
 const os = require('os');
@@ -97,7 +98,10 @@ async function check() {
   result.gpu = best.name; result.vram = best.vram; result.cap = best.cap; result.driver = best.driver;
   const vram = best.vram; const cap = best.cap ? best.cap[0] + best.cap[1] / 10 : 0;
   const ramOk = ram >= 15 * GiB;
-  if (cap >= 8 && vram >= 7.5 * GiB && ramOk) {
+  if (cap >= 8 && vram >= 23 * GiB && ram >= 30 * GiB) {
+    result.tier = 'pro';
+    if (ram < 60 * GiB) result.reasons.push('Chất lượng cao (LTX-2.3) chạy mượt hơn với 64 GB RAM (máy này ' + fmt(ram) + ').');
+  } else if (cap >= 8 && vram >= 7.5 * GiB && ramOk) {
     result.tier = 'full';
   } else if (vram >= 5.5 * GiB && ramOk && (cap === 0 || cap >= 6)) {
     result.tier = 'lite';
