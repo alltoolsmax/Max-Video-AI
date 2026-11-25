@@ -81,12 +81,17 @@ jobs:
         run: |
           VER=$(node -p "require('./package.json').version")
           TAG="v$VER"
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --draft --title "Max AI $TAG" \
-              --notes "Windows: max_ai_mrhuynh_win.zip (khách cài lần đầu). macOS: max_ai_mrhuynh_mac.zip (2 bộ cài chip Apple M + Intel)." \
-              --target "${{ github.sha }}" || sleep 10
+          NOTES="Windows: max_ai_mrhuynh_win.zip (khách cài lần đầu). macOS: max_ai_mrhuynh_mac.zip (2 bộ cài chip Apple M + Intel)."
+          # Tạo tag trước (nếu chưa có), rồi tạo bản phát hành — thử lại nhiều lần khi GitHub lỗi tạm thời (HTTP 5xx)
+          git tag "$TAG" "${{ github.sha }}" 2>/dev/null && git push origin "$TAG" 2>/dev/null || true
+          for i in 1 2 3 4 5 6 7 8; do
+            gh release view "$TAG" >/dev/null 2>&1 && break
+            gh release create "$TAG" --draft --title "Max AI $TAG" --notes "$NOTES" --verify-tag && break
+            echo "Tạo bản phát hành lỗi, thử lại lần $i sau $((i * 20)) giây…"; sleep $((i * 20))
+          done
+          gh release view "$TAG" >/dev/null
           if [ "${{ matrix.name }}" = "win" ]; then D=dist/downloads; else D=dist/downloads-mac; fi
-          gh release upload "$TAG" $D/* --clobber
+          for i in 1 2 3 4 5; do gh release upload "$TAG" $D/* --clobber && break; echo "Tải lên lỗi, thử lại…"; sleep $((i * 20)); done
 
   # Chế độ nhẹ + Chất lượng cao: kiểm tra workflow Wan 2.2 5B và LTX-2.3 với ComfyUI thật (CPU, mô hình rỗng — chỉ kiểm tra node & tham số)
   lite-check:
@@ -127,4 +132,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER=$(node -p "require('./package.json').version")
-          gh release edit "v$VER" --draft=false --latest
+          for i in 1 2 3 4 5; do gh release edit "v$VER" --draft=false --latest && break; sleep $((i * 20)); done
