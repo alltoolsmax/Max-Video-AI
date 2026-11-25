@@ -50,3 +50,19 @@ jobs:
                       print('LINKS', json.dumps(sg.get('links'))[:6000])
                   print('MODELS', json.dumps([n.get('properties', {}).get('models') for n in nodes(d) if n.get('properties', {}).get('models')])[:3000])
           PY
+      - run: |
+          (cd comfy && python main.py --cpu --listen 127.0.0.1 --port 8188 > ../comfy.log 2>&1 &)
+          for i in $(seq 1 90); do curl -sf http://127.0.0.1:8188/system_stats >/dev/null && break; sleep 2; done
+          curl -s http://127.0.0.1:8188/object_info > oi.json
+          python - <<'PY'
+          import json
+          oi = json.load(open('oi.json'))
+          for n in ['LTXVConcatAVLatent','LTXVAudioVAELoader','KSamplerSelect','ManualSigmas','CFGGuider','SamplerCustomAdvanced','LTXVCropGuides','LoraLoaderModelOnly','ResizeImagesByLongerEdge','LTXVLatentUpsampler','LTXVImgToVideoInplace','LTXVPreprocess','ResizeImageMaskNode','EmptyLTXVLatentVideo','LTXVAudioVAEDecode','LTXVConditioning','LTXVEmptyLatentAudio','LTXVSeparateAVLatent','CreateVideo','LatentUpscaleModelLoader','VAEDecodeTiled','CheckpointLoaderSimple','LTXAVTextEncoderLoader','EmptyImage','RandomNoise','SaveVideo','LoadImage','ImageFromBatch']:
+              d = oi.get(n)
+              if not d: print('MISSING', n); continue
+              def short(v):
+                  if isinstance(v, list) and v and isinstance(v[0], list): return 'COMBO' + json.dumps(v[0][:6])
+                  if isinstance(v, list): return json.dumps(v)[:260]
+                  return str(v)
+              print('OI', n, 'REQ', {k: short(v) for k, v in d['input'].get('required', {}).items()}, 'OPT', {k: short(v) for k, v in d['input'].get('optional', {}).items()}, 'ORDER', d.get('input_order'))
+          PY
