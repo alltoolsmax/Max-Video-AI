@@ -15,7 +15,8 @@ concurrency:
 # Bản phát hành tag v<phiên bản> (lấy từ package.json): bản nháp tới khi đủ Windows + macOS, rồi mới công bố (latest).
 # Tệp TÊN CỐ ĐỊNH – link .../releases/latest/download/<tên> không bao giờ đổi:
 #   max_ai_mrhuynh_win.zip (khách cài lần đầu) · max_ai_mrhuynh_win.exe + max_win.json (trang quản trị › Max AI › Cập nhật phần mềm)
-#   max_ai_mrhuynh_mac.zip (khách cài lần đầu, 2 bộ cài) · max_ai_mrhuynh_mac_apple.dmg / _intel.dmg + max_mac.json (máy Mac tự cập nhật)
+#   max_ai_mrhuynh_mac.zip (khách cài lần đầu) · max_ai_mrhuynh_mac_apple.dmg + max_mac.json (máy Mac tự cập nhật)
+#   Chỉ Mac chip Apple (M1 trở lên): engine tạo video không chạy trên Mac chip Intel.
 # Muốn khách nhận bản mới: tăng "version" trong package.json → push → đợi build xong → trang quản trị › Phát hành.
 jobs:
   build:
@@ -25,7 +26,7 @@ jobs:
         include:
           - os: windows-latest
             name: win
-          - os: macos-15-intel
+          - os: macos-15
             name: mac
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -46,9 +47,30 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
-          npx electron-builder --mac dmg --x64 --arm64 --publish never
+          npx electron-builder --mac dmg --arm64 --publish never
           VER=$(node -p "require('./package.json').version")
-          node tools/make-downloads.js --mac "dist/MaxAI-$VER-arm64.dmg" "dist/MaxAI-$VER-x64.dmg"
+          node tools/make-downloads.js --mac "dist/MaxAI-$VER-arm64.dmg"
+      - name: Thử mở app trên macOS (chụp màn hình + nhật ký)
+        if: matrix.name == 'mac'
+        continue-on-error: true
+        run: |
+          APP=$(ls -d dist/mac-arm64/*.app | head -1)
+          echo "App: $APP"; sw_vers; uname -m
+          MAXAI_SMOKE="$PWD/smoke-mac.png" "$APP/Contents/MacOS/Max AI" > smoke-mac.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 60); do [ -f smoke-mac.png ] && break; sleep 2; done
+          kill $PID 2>/dev/null || true
+          cat smoke-mac.log
+          test -f smoke-mac.png
+      - name: Lưu kết quả thử
+        if: matrix.name == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-mac
+          path: |
+            smoke-mac.png
+            smoke-mac.log
+          if-no-files-found: ignore
       - name: Đưa lên Releases (bản nháp)
         shell: bash
         env:
@@ -58,7 +80,7 @@ jobs:
           TAG="v$VER"
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --draft --title "Max AI $TAG" \
-              --notes "Windows: max_ai_mrhuynh_win.zip (khách cài lần đầu). macOS: max_ai_mrhuynh_mac.zip (2 bộ cài chip Apple M + Intel)." \
+              --notes "Windows: max_ai_mrhuynh_win.zip (khách cài lần đầu). macOS: max_ai_mrhuynh_mac.zip (Mac chip Apple M1 trở lên)." \
               --target "${{ github.sha }}" || sleep 10
           if [ "${{ matrix.name }}" = "win" ]; then D=dist/downloads; else D=dist/downloads-mac; fi
           gh release upload "$TAG" $D/* --clobber

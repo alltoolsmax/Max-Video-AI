@@ -12,6 +12,23 @@ protocol.registerSchemesAsPrivileged([
 let win;
 let bridge;
 
+// Nhật ký khởi động (để tìm lỗi khi app không mở được): ~/Library/Logs/Max AI/main.log (Mac), %APPDATA%\Max AI\logs\main.log (Windows)
+let logFile = null;
+function log(...args) {
+  const line = new Date().toISOString() + ' ' + args.map((a) => (a instanceof Error ? a.stack : typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+  console.log(line);
+  try {
+    if (!logFile) { logFile = path.join(app.getPath('logs'), 'main.log'); fs.mkdirSync(path.dirname(logFile), { recursive: true }); if (fs.existsSync(logFile) && fs.statSync(logFile).size > 2e6) fs.unlinkSync(logFile); }
+    fs.appendFileSync(logFile, line + '\n');
+  } catch { /* bỏ qua */ }
+}
+process.on('uncaughtException', (e) => {
+  log('[lỗi] uncaughtException', e);
+  try { dialog.showErrorBox('Max Video AI gặp lỗi', String((e && e.stack) || e) + '\n\nNhật ký: ' + (logFile || '')); } catch { /* bỏ qua */ }
+});
+process.on('unhandledRejection', (e) => log('[lỗi] unhandledRejection', e));
+log('Khởi động Max Video AI', app.getVersion(), process.platform, process.arch, 'Electron', process.versions.electron);
+
 // Giao diện tối/sáng đã lưu (để nền cửa sổ và nút đóng/thu nhỏ đúng màu ngay khi mở, giống GCloud Hub)
 function savedTheme() {
   try {
@@ -33,8 +50,14 @@ function createWindow() {
       contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false,
     },
   });
-  win.once('ready-to-show', () => win.show());
-  win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  win.once('ready-to-show', () => { log('Cửa sổ sẵn sàng'); win.show(); });
+  // Phòng khi trang không vẽ được (ready-to-show không tới): vẫn hiện cửa sổ sau 8 giây
+  setTimeout(() => { if (win && !win.isDestroyed() && !win.isVisible()) { log('[cảnh báo] ready-to-show chưa tới sau 8 giây — hiện cửa sổ'); win.show(); } }, 8000);
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => log('[lỗi] did-fail-load', code, desc, url));
+  win.webContents.on('render-process-gone', (_e, d) => log('[lỗi] render-process-gone', d));
+  win.webContents.on('preload-error', (_e, p, err) => log('[lỗi] preload-error', p, err));
+  win.webContents.on('console-message', (e) => { const lv = e.level !== undefined ? e.level : 0; if (lv === 'error' || lv === 'warning' || lv >= 2) log('[renderer]', e.message || ''); });
+  win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html')).then(() => log('Đã tải giao diện'), (e) => log('[lỗi] loadFile', e));
   // Liên kết ngoài mở bằng trình duyệt, không mở trong app.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) shell.openExternal(url);
@@ -44,8 +67,8 @@ function createWindow() {
   if (process.argv.includes('--dev')) win.webContents.openDevTools({ mode: 'detach' });
   // Kiểm thử tự động: MAXAI_SMOKE=<file.png> chụp màn hình sau khi tải xong rồi thoát.
   if (process.env.MAXAI_SMOKE) {
-    win.webContents.on('console-message', (_e, level, message) => { if (level >= 2) console.log('[renderer]', message); });
     win.webContents.once('did-finish-load', () => setTimeout(async () => {
+      log('Smoke: visible=' + win.isVisible());
       const image = await win.webContents.capturePage();
       require('fs').writeFileSync(process.env.MAXAI_SMOKE, image.toPNG());
       app.quit();
@@ -54,6 +77,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  log('app ready, userData=' + app.getPath('userData'));
   bridge = new Bridge({
     settingsPath: path.join(app.getPath('userData'), 'settings.json'),
     dialogs: {
@@ -86,13 +110,14 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('bridge', (_event, channel, args) => bridge.handle(channel, args));
-  bridge.start();
+  bridge.start().then(() => log('Bridge đã chạy'), (e) => log('[lỗi] bridge.start', e));
 
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   app.setAppUserModelId('net.mrhuynh.maxai');
   createWindow();
+  log('Đã tạo cửa sổ');
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-});
+}).catch((e) => { log('[lỗi] khởi động', e); try { dialog.showErrorBox('Max Video AI không khởi động được', String((e && e.stack) || e)); } catch { /* bỏ qua */ } });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
