@@ -574,7 +574,7 @@ class LiteEngine {
   }
 
   newJob(spec) {
-    const id = 'j' + crypto.randomBytes(6).toString('hex');
+    const id = (this.profile.id === 'pro' ? 'x' : 'j') + crypto.randomBytes(6).toString('hex');
     const job = { id, kind: 'generate', status: 'queued', spec, client: 'Max AI', created_at: now(), started_at: null, finished_at: null, result: null, error: null };
     this.jobs.set(id, job);
     this.order.unshift(id);
@@ -606,7 +606,8 @@ class LiteEngine {
       const running = this.order.map((id) => this.jobs.get(id)).find((j) => j && (j.status === 'running' || j.status === 'cancelling'));
       if (running) return await this.check(running);
       const next = [...this.order].reverse().map((id) => this.jobs.get(id)).find((j) => j && j.status === 'queued');
-      if (next) await this.submit(next);
+      // gate: chế độ Chất lượng cao chạy cùng engine bản đầy đủ — chỉ dùng GPU khi engine kia rảnh
+      if (next && (!this.gate || await this.gate().catch(() => false))) await this.submit(next);
     } finally { this.polling = false; }
   }
 
@@ -633,7 +634,16 @@ class LiteEngine {
     this.saveJobs();
   }
 
+  busy() { return [...this.jobs.values()].some((j) => j.status === 'running' || j.status === 'cancelling'); }
+  hasWork() { return [...this.jobs.values()].some((j) => ['queued', 'running', 'cancelling'].includes(j.status)); }
+  isLibraryItem(id) { const m = String(id).match(/^(\d{4}-\d{2}-\d{2})\/([0-9a-f]{32})$/); return Boolean(m && this.root && fs.existsSync(this.p('library', m[1], m[2], 'meta.json'))); }
+
   async lowVram() { const hw = await this.hardware(); return !hw.vram || hw.vram < 11.5 * 1024 ** 3; }
+
+  // Việc vừa kết thúc → báo ra ngoài (vd. giải phóng VRAM cho engine bản đầy đủ)
+  finished(job) {
+    if (this.afterJob) Promise.resolve().then(() => this.afterJob(job)).catch(() => {});
+  }
 
   async check(job) {
     const r = await fetch(this.comfyUrl + '/history/' + job.prompt_id).then((x) => x.json()).catch(() => null);
@@ -642,7 +652,7 @@ class LiteEngine {
       if (job.status === 'cancelling') {
         const q = await fetch(this.comfyUrl + '/queue').then((x) => x.json()).catch(() => null);
         const inQueue = q && [...(q.queue_running || []), ...(q.queue_pending || [])].some((row) => row[1] === job.prompt_id);
-        if (!inQueue) { Object.assign(job, { status: 'cancelled', finished_at: now(), error: { code: 'cancelled', message: 'Cancelled by the user' } }); this.saveJobs(); }
+        if (!inQueue) { Object.assign(job, { status: 'cancelled', finished_at: now(), error: { code: 'cancelled', message: 'Cancelled by the user' } }); this.saveJobs(); this.finished(job); }
       }
       return;
     }
@@ -659,6 +669,7 @@ class LiteEngine {
           : { code: 'comfy_error', message: text.slice(0, 400) } });
       }
       this.saveJobs();
+      this.finished(job);
       return;
     }
     if (!st.completed) return;
@@ -675,6 +686,7 @@ class LiteEngine {
     if (!video || !fs.existsSync(video)) {
       Object.assign(job, { status: 'failed', finished_at: now(), error: { code: 'no_output', message: 'ComfyUI chạy xong nhưng không thấy file video.' } });
       this.saveJobs();
+      this.finished(job);
       return;
     }
     const day = new Date().toISOString().slice(0, 10);
@@ -689,6 +701,7 @@ class LiteEngine {
       width: g.width, height: g.height, frames: g.frames, seconds: g.seconds, seed: job.seed, preview: false };
     Object.assign(job, { status: 'succeeded', finished_at: now(), progress: null });
     this.saveJobs();
+    this.finished(job);
   }
 
   async cancelJob(job) {

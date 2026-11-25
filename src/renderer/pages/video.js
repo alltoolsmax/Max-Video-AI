@@ -183,13 +183,17 @@ registerPage('video', (() => {
     const link = h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Engine & mô hình');
     if (els.liteBanner) {
       els.liteBanner.innerHTML = '';
-      if (c.pro) els.liteBanner.append(h('div', { class: 'lite-banner pro' }, icon('high_quality', 'fill'), h('div', {}, h('b', {}, 'Chất lượng cao (LTX-2.3): '),
-        'video tới ' + max + ' giây có âm thanh, chất lượng Cao = 1080p, Tối đa = 4K; chỉ dùng ảnh mở đầu. Đổi chế độ ở ', link, '.')));
+      if (c.pro) els.liteBanner.append(h('div', { class: 'lite-banner pro' }, icon('high_quality', 'fill'), h('div', {}, h('b', {}, 'Chất lượng cao: '),
+        'Tạo video dùng LTX-2.3 — tới ' + max + ' giây có âm thanh, chất lượng Cao = 1080p, Tối đa = 4K; chỉ dùng ảnh mở đầu. Các chức năng khác giữ nguyên. Đổi chế độ ở ', link, '.')));
       else if (lite) els.liteBanner.append(h('div', { class: 'lite-banner' }, icon('speed', 'fill'), h('div', {}, h('b', {}, 'Chế độ nhẹ (Wan 2.2 5B): '),
         'video tối đa ' + max + ' giây, chưa có âm thanh, chỉ dùng ảnh mở đầu. Máy có card RTX 30 trở lên thì chuyển sang bản đầy đủ ở ', link, '.')));
     }
-    for (const el of [els.previewBtn, els.previewHelp]) if (el) el.style.display = lite ? 'none' : '';
-    if (lite && Number(state.seconds) > max) { state.seconds = max; if (els.duration && els.duration.setValue) els.duration.setValue(max); }
+    for (const el of [els.previewBtn, els.previewHelp]) if (el) el.style.display = lite || c.pro ? 'none' : '';
+    if ((lite || c.pro) && Number(state.seconds) > max) { state.seconds = max; if (els.duration && els.duration.setValue) els.duration.setValue(max); }
+  }
+  // Chỉ hiện cảnh báo tiếng Việt của Max Video AI; bỏ các cảnh báo tiếng Anh của engine (vd. "Longer than 15 s is experimental")
+  function shownWarnings(list) {
+    return (list || []).filter((w) => typeof w === 'string' && /[ăâđêôơưàáảãạèéẻẽẹìíỉĩịòóỏõọùúủũụỳýỷỹỵ]/i.test(w));
   }
   function countLines() {
     const n = promptLines().length;
@@ -289,7 +293,7 @@ registerPage('video', (() => {
       chain && chain.blocks > 1 ? [h('dt', {}, 'Số phần'), h('dd', {}, chain.blocks + ' phần, tự ghép')] : null,
       state.takes > 1 ? [h('dt', {}, 'Số bản'), h('dd', {}, state.takes)] : null,
       state.loras.length ? [h('dt', {}, 'LoRA'), h('dd', {}, state.loras.length)] : null));
-    for (const w of (lastPlan && lastPlan.warnings) || []) box.append(h('div', { class: 'notice warn' }, icon('warning'), h('div', {}, w)));
+    for (const w of shownWarnings(lastPlan && lastPlan.warnings)) box.append(h('div', { class: 'notice warn' }, icon('warning'), h('div', {}, w)));
     if (lastPlanError && prompt) {
       box.append(h('div', { class: 'notice err' }, icon('error'), h('div', {}, errorText(lastPlanError),
         lastPlanError.next ? h('div', { class: 'small-text' }, lastPlanError.next) : null)));
@@ -316,7 +320,7 @@ registerPage('video', (() => {
         }
         const reply = await api('POST', '/jobs', spec);
         const jobs = reply.jobs || [reply.job];
-        for (const w of reply.warnings || []) toast(w);
+        for (const w of shownWarnings(reply.warnings)) toast(w);
         for (const job of jobs.slice().reverse()) addCard(job, true);
         sent += jobs.length;
       }

@@ -7,6 +7,7 @@ const { Connection, normalizeUrl } = require('./freevideo');
 const { Device } = require('./device');
 const { Engine, legalTexts } = require('./engine');
 const { LiteEngine } = require('./lite');
+const { HybridEngine } = require('./hybrid');
 const hardware = require('./hardware');
 const { Updater } = require('./updater');
 const { Gpt, SYSTEM: AI_SYSTEM, userText: aiUserText } = require('./gpt');
@@ -33,11 +34,13 @@ class Bridge {
     this.device.tier = () => (this.license.view().ok ? 'pro' : 'free');
     this.quitApp = quit || (() => {});
     this.updater = new Updater({ device: this.device, quit, onProgress: (p) => this.emit('update:progress', p) });
-    this.fullEngine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
+    this.fullEngine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p, 'full') });
     // Chế độ nhẹ (Wan 2.2 5B qua ComfyUI) cho máy card NVIDIA yếu — chọn tự động theo kết quả kiểm tra máy
     this.liteEngine = new LiteEngine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p), hardware: () => hardware.check() });
     // Chất lượng cao (LTX-2.3 22B, video + âm thanh tới 4K) cho máy mạnh ≥ 24 GB VRAM — dùng chung ComfyUI với chế độ nhẹ
-    this.proEngine = new LiteEngine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p), hardware: () => hardware.check(), profile: 'pro' });
+    this.ltxEngine = new LiteEngine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p, 'ltx'), hardware: () => hardware.check(), profile: 'pro' });
+    // Chất lượng cao = bản đầy đủ (mọi chức năng) + Tạo video bằng LTX-2.3
+    this.proEngine = new HybridEngine({ full: this.fullEngine, ltx: this.ltxEngine, emit: (n, p) => this.onEngine(n, p, 'pro') });
     this.gpt = new Gpt({ settings: this.settings, save: () => this.save() });
     this.ready = null;
   }
@@ -76,7 +79,10 @@ class Bridge {
   }
 
   // Khi engine trong máy mở xong: trỏ kết nối tới đúng engine đó (token ở <thư mục cài>/agent/token).
-  onEngine(name, payload) {
+  onEngine(name, payload, from) {
+    // Ở Chất lượng cao, giao diện nói chuyện với máy chủ trung gian (không trỏ thẳng vào từng engine con)
+    if (name === 'engine:open' && this.mode === 'pro' && from !== 'pro') { this.emit('engine:status', this.engine.status()); return; }
+    if (name === 'engine:status' && this.mode === 'pro' && from !== 'pro') { this.emit('engine:status', this.engine.status()); return; }
     if (name === 'engine:open') {
       this.settings.root = payload.root;
       this.settings.url = payload.url;
@@ -111,7 +117,7 @@ class Bridge {
 
   // Đóng Max Video AI: tắt engine và dừng việc cài đang chạy (chạy lại sẽ tải tiếp).
   async shutdown() {
-    for (const e of [this.fullEngine, this.liteEngine, this.proEngine]) {
+    for (const e of [this.proEngine, this.fullEngine, this.liteEngine, this.ltxEngine]) {
       try { e.cancel(); } catch { /* bỏ qua */ }
       try { await e.stop(); } catch { /* bỏ qua */ }
     }

@@ -122,7 +122,7 @@ registerPage('engine', (() => {
       h('div', { class: 'card-body' }, hardwareBox(),
         h('div', { class: 'mode-pick' },
           opt('full', 'workspace_premium', 'Bản đầy đủ', 'Máy tầm trung — MiniMax H3: video tới 15 giây có âm thanh, Tạo ảnh, Sửa ảnh, Lồng tiếng, Phụ đề, Autopilot. RTX 30 trở lên (8 GB VRAM) hoặc Mac chip Apple. Tải ~50 GB.', hw.tier === 'full' || hw.tier === 'pro'),
-          opt('pro', 'high_quality', 'Chất lượng cao', 'Máy mạnh — LTX-2.3 22B: video có âm thanh tới 10 giây, 1080p / 4K, chỉ Tạo video. RTX 3090 / 4090 / 5090 (≥ 24 GB VRAM), nên 64 GB RAM. Tải ~46 GB.', hw.tier === 'pro')))));
+          opt('pro', 'high_quality', 'Chất lượng cao', 'Máy mạnh — đủ mọi chức năng như bản đầy đủ, riêng Tạo video dùng LTX-2.3 22B: video có âm thanh tới 10 giây, 1080p / 4K. RTX 3090 / 4090 / 5090 (≥ 24 GB VRAM), nên 64 GB RAM. Tải thêm ~46 GB.', hw.tier === 'pro')))));
   }
   async function switchMode(id, ok) {
     const name = { lite: 'chế độ nhẹ', pro: 'chất lượng cao', full: 'bản đầy đủ' }[id];
@@ -170,9 +170,10 @@ registerPage('engine', (() => {
     const st = Eng.st || {};
     if (st.mode === 'lite' || st.mode === 'pro') {
       const pro = st.mode === 'pro';
-      const g = (st.groups || [])[0];
-      const state = st.installed ? pill('ok', 'check_circle', 'Đã tải')
-        : st.phase === 'installing' && g ? bar(`Đang tải · ${fmtBytes(g.ready)} / ${fmtBytes(g.total)} (${pct(g.ready, g.total)}%)${speed(g.speed)}`, g.total ? g.ready / g.total : null)
+      const sub = pro ? (st.ltx || {}) : st;
+      const g = (sub.groups || [])[0];
+      const state = sub.installed ? pill('ok', 'check_circle', 'Đã tải')
+        : sub.phase === 'installing' && g ? bar(`Đang tải · ${fmtBytes(g.ready)} / ${fmtBytes(g.total)} (${pct(g.ready, g.total)}%)${speed(g.speed)}`, g.total ? g.ready / g.total : null)
           : pill('', 'schedule', 'Chưa tải');
       const rows = (pro ? [['Mô hình video + âm thanh', 'LTX-2.3 22B fp8 · 29 GB', 'Tạo video có tiếng từ prompt / ảnh mở đầu'], ['Bộ đọc prompt', 'Gemma 3 12B fp8 · 13 GB', 'Hiểu prompt'],
         ['LoRA chạy nhanh', 'LTX-2.3 distilled 1.1 · 2,7 GB', 'Giảm số bước'], ['Bộ phóng to ×2', 'LTX-2.3 spatial upscaler · 1 GB', 'Tầng 2 lên đủ độ phân giải'], ['ComfyUI + PyTorch', '~3,5 GB', 'Chạy mô hình trên card NVIDIA']]
@@ -180,12 +181,12 @@ registerPage('engine', (() => {
           ['Bộ giải mã video', 'Wan 2.2 VAE · 1,4 GB', 'Giải mã khung hình'], ['ComfyUI + PyTorch', '~3,5 GB', 'Chạy mô hình trên card NVIDIA']])
         .map(([n, m, u]) => h('tr', {}, h('td', {}, h('b', {}, n), h('div', { class: 'small-text muted' }, m)), h('td', { class: 'small-text muted' }, u), h('td', {}, state), h('td')));
       els.packs.append(h('div', { class: 'card' },
-        h('div', { class: 'card-head' }, icon('deployed_code'), h('h2', {}, pro ? 'Mô hình chất lượng cao' : 'Mô hình chế độ nhẹ')),
+        h('div', { class: 'card-head' }, icon('deployed_code'), h('h2', {}, pro ? 'Mô hình Tạo video chất lượng cao (LTX-2.3)' : 'Mô hình chế độ nhẹ')),
         h('div', { class: 'table-wrap' }, h('table', { class: 'data packs-table' }, h('thead', {}, h('tr', {}, ['Mô hình', 'Dùng cho', 'Trạng thái', ''].map((t) => h('th', {}, t)))), h('tbody', {}, rows))),
         h('div', { class: 'card-body help', style: { marginTop: 0 } }, pro
           ? 'LTX-2.3 của Lightricks (giấy phép LTX-2 Community License: dùng thương mại miễn phí khi doanh thu dưới 10 triệu USD/năm), chạy bằng ComfyUI ngay trên máy bạn.'
           : 'Wan 2.2 của Alibaba (giấy phép Apache-2.0, dùng thương mại được), chạy bằng ComfyUI ngay trên máy bạn.')));
-      return;
+      if (!pro) return;
     }
     const running = st.phase === 'running';
     const installing = st.phase === 'installing';
