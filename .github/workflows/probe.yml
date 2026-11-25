@@ -1,0 +1,47 @@
+name: Probe LTX templates
+on:
+  push:
+    branches: [ probe ]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          C=421a1c245c682c04d4325ba365f40c834c66f5b0
+          curl -sL "https://github.com/comfy-org/ComfyUI/archive/$C.zip" -o comfy.zip && unzip -q comfy.zip && mv ComfyUI-$C comfy
+          pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -q -r comfy/requirements.txt
+          python - <<'PY'
+          import importlib, json, os, glob
+          import comfyui_workflow_templates as t
+          print('PKG', t.__file__)
+          base = os.path.dirname(t.__file__)
+          files = []
+          for m in ['comfyui_workflow_templates_media_video', 'comfyui_workflow_templates_core', 'comfyui_workflow_templates']:
+              try:
+                  mod = importlib.import_module(m); files += glob.glob(os.path.join(os.path.dirname(mod.__file__), '**', '*.json'), recursive=True)
+              except Exception as e: print('no', m, e)
+          ltx = sorted(f for f in files if 'ltx' in os.path.basename(f).lower())
+          print('LTX FILES'); [print(' ', os.path.basename(f), os.path.getsize(f)) for f in ltx]
+          os.makedirs('out', exist_ok=True)
+          for f in ltx:
+              if '2_3' in f or '2.3' in f or 'ltx2' in f.lower():
+                  d = json.load(open(f))
+                  def nodes(g):
+                      for n in g.get('nodes', []): yield n
+                      for sg in (g.get('definitions') or {}).get('subgraphs', []):
+                          yield from nodes(sg)
+                  print('===== ', os.path.basename(f))
+                  for n in nodes(d):
+                      if n.get('mode') == 4: continue
+                      ins = [(i.get('name'), i.get('link'), (i.get('widget') or {}).get('name')) for i in n.get('inputs', [])]
+                      outs = [(o.get('name'), o.get('links')) for o in n.get('outputs', [])]
+                      print('N', n['id'], n['type'], json.dumps(n.get('widgets_values'))[:300], 'IN', ins, 'OUT', outs)
+                  for sg in [d] + (d.get('definitions') or {}).get('subgraphs', []):
+                      print('LINKS', json.dumps(sg.get('links'))[:6000])
+                  print('MODELS', json.dumps([n.get('properties', {}).get('models') for n in nodes(d) if n.get('properties', {}).get('models')])[:3000])
+          PY
