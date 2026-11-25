@@ -145,6 +145,11 @@ class Bridge {
           return { ok: false, status: 0, error: { code: 'not_picked', message: 'Hãy chọn file qua hộp thoại trước.' } };
         }
         return this.connection.upload(args.path);
+      case 'files:import':   // video/âm thanh đưa vào dự án dựng (phụ đề, lồng tiếng)
+        if (!this.allowedFiles.has(args.path)) {
+          return { ok: false, status: 0, error: { code: 'not_picked', message: 'Hãy chọn file qua hộp thoại trước.' } };
+        }
+        return this.connection.upload(args.path, '/imports');
       case 'media:save': {
         const target = await this.dialogs.saveFile(args.name || 'max-ai-output');
         if (!target) return { ok: false, cancelled: true };

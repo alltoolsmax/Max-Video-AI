@@ -30,6 +30,10 @@ JOBS = {}       # id -> row
 ORDER = []      # mới nhất trước
 LIBRARY = []    # mới nhất trước
 PACKS = {'image-h3': 'missing', 'vlm': 'missing'}   # gói mô hình giả lập
+CAST = {}       # id -> card
+PROJECTS = {}   # id -> project
+IMPORTS = {}    # id -> import
+DRAMAS = {}     # id -> film
 
 
 def now():
@@ -209,6 +213,19 @@ def worker():
                 relative = 'freevideo/agent/assets/' + name
                 row['result'] = dict(file=relative, url=PREFIX + '/media/input/' + relative + '/file', width=1024, height=1024,
                                      thumbnail=PREFIX + '/media/input/' + relative + '/file', seed=secrets.randbelow(2 ** 31))
+            elif row['kind'] == 'listen':
+                words = ['Xin chào, hôm nay trời mưa to quá.', 'Ừ, mình đợi xe buýt nãy giờ rồi.', 'Đi chung ô với mình nhé?']
+                row['result'] = dict(kind='transcribe', language='vi', fps=24, lines=[dict(index=i, text=t, matched=True, start=i * 30 + 6, end=i * 30 + 28,
+                                     start_seconds=round((i * 30 + 6) / 24, 3), end_seconds=round((i * 30 + 28) / 24, 3)) for i, t in enumerate(words)])
+            elif row['kind'] == 'voice_lines':
+                said = ['I have been waiting for the bus.', 'Do you want to share my umbrella?', 'Thank you, that is very kind.']
+                row['result'] = dict(lines=[dict(id='l%03d' % (i + 1), start=i * 1.3 + .2, end=i * 1.3 + 1.1, text=t, speaker=i % 2 + 1, words=t.split(), rate=6.5)
+                                            for i, t in enumerate(said)], recognition='r' + uuid.uuid4().hex[:12], separated=True, speech=True, source='dialogue')
+            elif row['kind'] == 'voice':
+                row['result'] = dict(placed=True, failed=0, lines=[], seconds=3.2)
+            elif row['kind'] == 'export':
+                item = add_library('sea', 'Exported project ' + spec.get('editor_project', ''))
+                row['result'] = dict(video=library_view(item), library_id=item['id'], width=item['width'], height=item['height'], seconds=4.0)
             elif row['kind'] == 'enhance':
                 row['result'] = dict(text='integrated_multimodal_description: [Shot 1] Live-action, cinematic, a medium-wide shot frames '
                                      + spec.get('text', '').strip().split('\n')[0] + ' The camera pushes in slowly with small amplitude; soft '
@@ -288,6 +305,125 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, dict(ready=False, bytes=2 * 2**30))
         return None
 
+    # ---- Nhân vật, sửa ảnh nhanh, import, dự án dựng, phim Autopilot (giả lập) ----
+    def extra(self, method, route, value):
+        def copy_image():
+            name = uuid.uuid4().hex + '.png'
+            shutil.copy(DATA / 'samples' / 'image.png', DATA / 'input' / name)
+            rel = 'freevideo/agent/assets/' + name
+            return dict(file=rel, url=PREFIX + '/media/input/' + rel + '/file')
+        if route == '/cast' and method == 'GET':
+            for c in CAST.values():
+                if c.get('generating') and time.time() > c['_ready']:
+                    c['images'] = c['images'] + [dict(media=copy_image(), by='builtin', label='front', generated=True)]
+                    c['generating'] = None
+            return 200, dict(cards=list(CAST.values()), total=len(CAST))
+        if route == '/cast' and method == 'POST':
+            cid = 'c' + uuid.uuid4().hex[:12]
+            card = dict(id=cid, kind=value.get('kind', 'character'), name=value['name'], description=value.get('description'), revision=1,
+                        images=[dict(media=dict(file=i['media']['file'], url=PREFIX + '/media/input/' + i['media']['file'] + '/file'), by='user', label=i.get('label', 'other')) for i in value.get('images', [])],
+                        voice=value.get('voice'), generating=None)
+            CAST[cid] = card
+            return 201, dict(card=card)
+        m = re.fullmatch(r'/cast/(c[0-9a-f]{12})(/generate)?', route)
+        if m:
+            card = CAST.get(m.group(1))
+            if not card: return problem(404, 'not_found', 'No such card')
+            if m.group(2):
+                card['generating'] = dict(job='j' + uuid.uuid4().hex[:12]); card['_ready'] = time.time() + 4
+                return 201, dict(job=dict(id=card['generating']['job']))
+            if method == 'DELETE':
+                CAST.pop(card['id']); return 200, dict(deleted=True)
+            if method == 'PATCH':
+                card.update({k: v for k, v in value.items() if k in ('name', 'description', 'kind', 'voice')}); card['revision'] += 1
+                if 'images' in value:
+                    card['images'] = [dict(media=dict(file=i['media']['file'], url=PREFIX + '/media/input/' + i['media']['file'] + '/file'), by='user', label=i.get('label', 'other')) for i in value['images']]
+                return 200, dict(card=card)
+            return 200, dict(card=card)
+        if route == '/media/edit':
+            made = copy_image()
+            return 201, dict(made, view=made, width=1024, height=1024, document={})
+        if route == '/imports' and method == 'GET':
+            for i in IMPORTS.values():
+                if time.time() > i['_ready']: i.update(state='ready', fraction=1)
+            return 200, dict(items=[{k: v for k, v in i.items() if not k.startswith('_')} for i in IMPORTS.values()])
+        if route == '/projects' and method == 'POST':
+            pid = 'e-' + uuid.uuid4().hex
+            PROJECTS[pid] = dict(id=pid, revision=1, name=value['project'].get('name', ''), fps=24, tracks=[dict(id='v1', kind='video', clips=[]), dict(id='a1', kind='audio', clips=[])])
+            return 201, dict(project=PROJECTS[pid])
+        m = re.fullmatch(r'/projects/(e-[0-9a-f]{32})(/.*)?', route)
+        if m:
+            pr = PROJECTS.get(m.group(1)); sub = m.group(2) or ''
+            if not pr: return problem(404, 'not_found', 'No such project')
+            if sub == '': return 200, dict(project=pr)
+            if value.get('revision') is not None and sub not in ('/voice/estimate',) and value['revision'] != pr['revision']:
+                return problem(409, 'project_changed', 'The project changed')
+            if sub == '/operations':
+                for op in value['operations']:
+                    if op['op'] == 'insert':
+                        pr['tracks'][0]['clips'].append(dict(id='v' + uuid.uuid4().hex[:6], start=0, frames=97))
+                        pr['tracks'][1]['clips'].append(dict(id='a' + uuid.uuid4().hex[:6], start=0, frames=97))
+                pr['revision'] += 1
+                return 200, dict(project=pr)
+            if sub == '/voice/estimate':
+                return 200, dict(seconds=4.2, lines=[dict(id=l['id'], seconds=2.4, available=1.5, overrun=.6 if len(l['text']) > 40 else 0) for l in value['lines'] if l['text'] != l['original_text']])
+            kind = {'/listen': 'listen', '/voice/lines': 'voice_lines', '/voice/replace': 'voice', '/export': 'export'}.get(sub)
+            if kind:
+                row = new_job(dict(value, kind=kind, editor_project=pr['id']), None)
+                if kind == 'voice': pr['revision'] += 1
+                return 201, dict(job=view(row), jobs=[view(row)])
+        if route == '/drama/plan' or (route == '/drama' and method == 'POST'):
+            play = value['screenplay']
+            if route == '/drama/plan':
+                return 200, dict(request=value, preview=dict(shots=[dict(prompt=s.get('action', '')) for s in play['shots']], total=len(play['shots']) * value.get('takes_per_shot', 1)),
+                                 estimate=dict(seconds=len(play['shots']) * value.get('takes_per_shot', 1) * 95))
+            did = 'd' + uuid.uuid4().hex[:12]
+            DRAMAS[did] = dict(id=did, title=play.get('title'), status='running', screenplay=play, created_at=now(), updated_at=now(), decisions=[], outputs=[],
+                               _t0=time.time(), _takes=value.get('takes_per_shot', 1))
+            return 201, dict(drama=self.drama_view(DRAMAS[did]))
+        if route == '/drama' and method == 'GET':
+            return 200, dict(items=[dict(id=d['id'], title=d['title'], status=self.drama_view(d)['status'], shots=len(d['screenplay']['shots']), updated_at=d['updated_at']) for d in DRAMAS.values()])
+        m = re.fullmatch(r'/drama/(d[0-9a-f]{12})(/cancel)?', route)
+        if m:
+            d = DRAMAS.get(m.group(1))
+            if not d: return problem(404, 'not_found', 'No such film')
+            if m.group(2): d['status'] = 'cancelled'
+            return 200, dict(drama=self.drama_view(d))
+        return None
+
+    def drama_view(self, d):
+        el = time.time() - d['_t0']; n = len(d['screenplay']['shots']); k = d['_takes']; shots = []
+        sample = LIBRARY[-1]['id'] if LIBRARY else None
+        for i in range(n):
+            takes = []
+            for t in range(k):
+                done = el > (i * k + t + 1) * 2
+                takes.append(dict(take=t + 1, state='succeeded' if done else ('running' if el > (i * k + t) * 2 else 'queued'), library_id=sample if done else None))
+            chosen = 1 if all(t['state'] == 'succeeded' for t in takes) else None
+            shots.append(dict(id='shot-%d' % (i + 1), index=i + 1, state='chosen' if chosen else 'running', chosen=chosen, takes=takes))
+        status = d['status']
+        if status != 'cancelled' and all(s['chosen'] for s in shots):
+            status = 'finished'
+            if not d['outputs']: d['outputs'].append(dict(library_id=sample, seconds=4))
+            d['decisions'] = [dict(action='choose', reason='Bản 1 của cảnh %d rõ mặt, đúng hành động.' % (i + 1)) for i in range(n)]
+        return dict(id=d['id'], title=d['title'], status=status, screenplay=d['screenplay'], shots=shots, outputs=d['outputs'], decisions=d['decisions'], updated_at=d['updated_at'])
+
+    def handle_extra(self, method):
+        route = self.route()
+        if route is None or not self.authorized():
+            return route is None and self.send_json(404, {})
+        value = self.body() if method in ('POST', 'PATCH') else {}
+        answer = self.extra(method, urlsplit(route).path, value or {})
+        if answer is None:
+            return self.send_json(*problem(404, 'not_found', 'No contract'))
+        return self.send_json(*answer)
+
+    def do_PATCH(self):
+        return self.handle_extra('PATCH')
+
+    def do_DELETE(self):
+        return self.handle_extra('DELETE')
+
     def do_GET(self):
         if urlsplit(self.path).path.startswith('/freevideo/') and not self.path.startswith(PREFIX):
             if self.mock_packs() is None:
@@ -299,6 +435,9 @@ class Handler(BaseHTTPRequestHandler):
         query = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
         if route == '':
             return self.send_json(200, caps())
+        answer = self.extra('GET', urlsplit(route).path, {})
+        if answer is not None:
+            return self.send_json(*answer)
         if route == '/jobs':
             with LOCK:
                 rows = [JOBS[j] for j in ORDER]
@@ -371,7 +510,17 @@ class Handler(BaseHTTPRequestHandler):
             relative = 'freevideo/agent/assets/' + name
             kind = 'image' if suffix in ('.png', '.jpg', '.jpeg', '.webp', '.bmp') else 'video' if suffix in ('.mp4', '.mov', '.webm', '.mkv') else 'audio'
             return self.send_json(201, dict(file=relative, url=PREFIX + '/media/input/' + relative + '/file', kind=kind, name=name, bytes=len(data)))
+        if route == '/imports':
+            length = int(self.headers.get('Content-Length') or 0)
+            self.rfile.read(length)
+            iid = uuid.uuid4().hex[:16]
+            IMPORTS[iid] = dict(id=iid, name='video.mp4', kind='video', state='preparing', fraction=.2, frames=97, fps=24, source='import:' + iid,
+                                preview=PREFIX + '/library/' + LIBRARY[0]['id'] + '/file', thumbnail=PREFIX + '/library/' + LIBRARY[0]['id'] + '/thumbnail', _ready=time.time() + 2)
+            return self.send_json(201, dict(import_={k: v for k, v in IMPORTS[iid].items() if not k.startswith('_')}, **{k: v for k, v in IMPORTS[iid].items() if not k.startswith('_')}))
         value = self.body()
+        answer = self.extra('POST', route, value or {})
+        if answer is not None:
+            return self.send_json(*answer)
         if route == '/plan':
             return self.send_json(*plan(value))
         if route == '/jobs':

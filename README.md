@@ -15,7 +15,12 @@ Giao diện cùng tông với GCloud Hub. Đếm máy, cập nhật online và v
 | Hàng đợi · Thư viện | Tiến độ theo từng bước, huỷ, chạy lại, tải về; xem lại mọi video đã tạo |
 | Mô hình AI trên máy | Danh sách đầy đủ mô hình của engine, tải riêng từng gói: tạo video (MiniMax H3 · VDN-H3), tạo ảnh chất lượng cao (MiniMax H3 Image), tạo ảnh nhanh (Qwen Image 2.1 Turbo), chọn vùng (SAM 2), AI viết prompt (Prompt VLM), lồng tiếng (CosyVoice 3), phụ đề (nhận dạng giọng nói), nhạc nền. Có tiến độ, dừng / tải tiếp |
 | Cài đặt | Giao diện tối/sáng, thông tin máy, kiểm tra cập nhật |
-| Sắp có | Dựng timeline · Sửa ảnh · Nhân vật · Autopilot · Lồng tiếng · Phụ đề |
+| Sửa ảnh | Sửa bằng AI theo mô tả (H3 Image / Qwen), hoặc chỉnh nhanh: xoay, lật, cắt khung, màu sắc & ánh sáng, thêm chữ, xoá chữ cháy |
+| Nhân vật | Thẻ nhân vật / bối cảnh / đạo cụ với ảnh tham chiếu, giọng mẫu; AI vẽ ảnh tham chiếu từ mô tả; dùng trong Tạo ảnh và Autopilot |
+| Autopilot | Viết kịch bản nhiều cảnh (nhân vật, lời thoại, góc máy) → AI tự quay nhiều bản mỗi cảnh, tự chọn bản đẹp nhất, tự ghép phim |
+| Lồng tiếng | AI nghe từng câu thoại → sửa/dịch câu → AI nói lại bằng chính giọng gốc, đúng chỗ → xuất video |
+| Phụ đề | AI nghe và tạo phụ đề có thời gian → sửa → tải .srt hoặc xuất video có phụ đề |
+| Sắp có | Dựng timeline |
 
 ## Engine chạy trong máy như thế nào
 1. Bộ cài mang sẵn mã nguồn Max AI Engine (thư mục `engine/`, khoảng 70 MB, không có mô hình). Lần đầu, app chép engine vào thư mục cài người dùng chọn, ví dụ `D:\MaxAI-Engine\engine`. Mọi dữ liệu của engine nằm gọn trong thư mục đó.

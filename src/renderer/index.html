@@ -31,18 +31,18 @@
     <nav class="nav">
       <a class="nav-item" data-route="video"><span class="ms">movie</span><span>Tạo video</span></a>
       <a class="nav-item" data-route="image"><span class="ms">image</span><span>Tạo ảnh</span></a>
+      <a class="nav-item" data-route="edit"><span class="ms">auto_fix_high</span><span>Sửa ảnh</span></a>
+      <a class="nav-item" data-route="cast"><span class="ms">groups</span><span>Nhân vật</span></a>
+      <a class="nav-item" data-route="autopilot"><span class="ms">smart_toy</span><span>Autopilot</span></a>
+      <a class="nav-item" data-route="dubbing"><span class="ms">record_voice_over</span><span>Lồng tiếng</span></a>
+      <a class="nav-item" data-route="subtitles"><span class="ms">subtitles</span><span>Phụ đề</span></a>
+    </nav>
+    <div class="side-section">Quản lý</div>
+    <nav class="nav">
       <a class="nav-item" data-route="queue"><span class="ms">pending_actions</span><span>Hàng đợi</span><span class="nav-count hidden" id="nav-queue-count"></span></a>
       <a class="nav-item" data-route="library"><span class="ms">video_library</span><span>Thư viện</span></a>
       <a class="nav-item" data-route="settings"><span class="ms">settings</span><span>Cài đặt</span></a>
-    </nav>
-    <div class="side-section">Sắp có</div>
-    <nav class="nav">
-      <a class="nav-item soon" data-route="soon/timeline"><span class="ms">view_timeline</span><span>Dựng timeline</span></a>
-      <a class="nav-item soon" data-route="soon/image-edit"><span class="ms">auto_fix_high</span><span>Sửa ảnh</span></a>
-      <a class="nav-item soon" data-route="soon/cast"><span class="ms">groups</span><span>Nhân vật</span></a>
-      <a class="nav-item soon" data-route="soon/autopilot"><span class="ms">smart_toy</span><span>Autopilot</span></a>
-      <a class="nav-item soon" data-route="soon/dubbing"><span class="ms">record_voice_over</span><span>Lồng tiếng</span></a>
-      <a class="nav-item soon" data-route="soon/subtitles"><span class="ms">subtitles</span><span>Phụ đề</span></a>
+      <a class="nav-item soon" data-route="soon/timeline"><span class="ms">view_timeline</span><span>Dựng timeline</span><span class="nav-count soon-tag">Sắp có</span></a>
     </nav>
     <nav class="nav nav-bottom">
       <a class="nav-item" data-route="engine"><span class="ms">memory</span><span>Engine & mô hình</span></a>
@@ -78,9 +78,15 @@
 <script src="js/widgets.js"></script>
 <script src="js/extras.js"></script>
 <script src="js/legal.js"></script>
+<script src="js/work.js"></script>
 <script src="pages/engine.js"></script>
 <script src="pages/video.js"></script>
 <script src="pages/image.js"></script>
+<script src="pages/edit.js"></script>
+<script src="pages/cast.js"></script>
+<script src="pages/autopilot.js"></script>
+<script src="pages/dubbing.js"></script>
+<script src="pages/subtitles.js"></script>
 <script src="pages/queue.js"></script>
 <script src="pages/library.js"></script>
 <script src="pages/settings.js"></script>

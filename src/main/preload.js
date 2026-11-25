@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('fv', {
   // Max AI: engine trong máy, cập nhật, video hướng dẫn, thông tin ứng dụng
   app: () => call('app:info'),
   legal: () => call('legal:texts'),
+  importMedia: (path) => call('files:import', { path }),
   quit: () => call('app:quit'),
   guides: () => call('guides'),
   engine: {

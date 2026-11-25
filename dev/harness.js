@@ -22,7 +22,7 @@ const bridge = new Bridge({
   dialogs: {
     openExternal: async (url) => console.log('[harness] mở liên kết:', url),
     pickFolder: async () => process.env.HARNESS_PICK_FOLDER || path.join(__dirname),
-    pickFiles: async () => [path.join(__dirname, 'mock_data', 'samples', 'image.png')],
+    pickFiles: async (filters) => [path.join(__dirname, 'mock_data', 'samples', JSON.stringify(filters || '').includes('mp4') ? 'sea.mp4' : 'image.png')],
     saveFile: async (name) => path.join(os.tmpdir(), name),
   },
 });

@@ -65,7 +65,7 @@ class Connection {
   }
 
   // Tải một file trên máy lên /media (multipart, đọc dần từ đĩa nên file lớn vẫn ổn).
-  async upload(filePath) {
+  async upload(filePath, endpoint = '/media') {
     if (!this.token()) return fail(0, 'no_token', 'Engine chưa cài hoặc chưa bật.');
     let stat;
     try { stat = await fsp.stat(filePath); } catch { return fail(0, 'invalid_media', 'Không đọc được file này.'); }
@@ -77,7 +77,7 @@ class Connection {
     // Giống client chính thức: chỉ gửi đuôi file, không gửi tên/đường dẫn thật.
     form.append('file', await fs.openAsBlob(filePath), 'media' + suffix);
     try {
-      const response = await fetch(this.url + PREFIX + '/media', {
+      const response = await fetch(this.url + PREFIX + endpoint, {
         method: 'POST', headers: this.headers(), body: form, redirect: 'error', signal: AbortSignal.timeout(600000) });
       const reply = await readReply(response);
       if (reply.ok && reply.data) reply.data.original_name = path.basename(filePath);

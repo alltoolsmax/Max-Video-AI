@@ -101,7 +101,7 @@ const PHASES = {
   sampling: 'Đang tạo', refining: 'Đang làm nét', decoding: 'Đang giải mã', saving: 'Đang lưu', joining: 'Đang ghép các phần',
   upscaling: 'Đang phóng to', complete: 'Hoàn tất', interrupted: 'Bị gián đoạn', running: 'Đang chạy', cancelling: 'Đang huỷ',
 };
-const KINDS = { generate: 'Video', image: 'Ảnh', enhance: 'Viết prompt', assemble: 'Ghép video', vlm: 'Hỏi AI', export: 'Xuất video' };
+const KINDS = { generate: 'Video', image: 'Ảnh', enhance: 'Viết prompt', assemble: 'Ghép video', vlm: 'Hỏi AI', export: 'Xuất video', listen: 'Phụ đề', voice_lines: 'Nghe lời thoại', voice: 'Lồng tiếng', voice_say: 'Lồng tiếng', image_edit: 'Sửa ảnh', music: 'Nhạc nền', stems: 'Tách âm', finish_sound: 'Hoàn thiện âm thanh' };
 
 function statusBadge(status) {
   const [text, name] = STATUS[status] || [status, 'help'];
@@ -164,7 +164,7 @@ function navigate(route, params) {
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.route === route));
   App.current = page;
   App.currentRoute = route;
-  const title = { video: 'Tạo video', image: 'Tạo ảnh', queue: 'Hàng đợi', library: 'Thư viện', settings: 'Cài đặt', engine: 'Engine & mô hình', soon: 'Sắp có' }[name];
+  const title = { video: 'Tạo video', image: 'Tạo ảnh', queue: 'Hàng đợi', library: 'Thư viện', settings: 'Cài đặt', engine: 'Engine & mô hình', soon: 'Sắp có', edit: 'Sửa ảnh', cast: 'Nhân vật', autopilot: 'Autopilot', dubbing: 'Lồng tiếng', subtitles: 'Phụ đề' }[name];
   if ($('#pageTitle')) $('#pageTitle').textContent = title || '';
   page.render(content, Object.assign({ sub }, params || {}));
 }
