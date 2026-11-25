@@ -46,6 +46,7 @@ class Bridge {
   start() {
     if (this.ready) return this.ready;
     this.ready = Promise.resolve().then(() => {
+      this.engine.adoptExisting();   // cài lại app → tự nhận thư mục engine & mô hình cũ
       this.device.ping();
       setInterval(() => this.device.ping(), 30 * 60 * 1000).unref?.();
       const autoCheck = async () => {
@@ -78,6 +79,7 @@ class Bridge {
   // Lần đầu chạy: tự dò thư mục cài đặt và cổng.
   // Max AI chỉ nói chuyện với ENGINE CỦA CHÍNH NÓ (thư mục cài trong mục Engine & mô hình), không dò phần mềm khác trên máy.
   async autoConfigure() {
+    this.engine.adoptExisting();
     const root = this.engine.root;
     if (root && this.settings.root !== root) {
       this.settings.root = root;

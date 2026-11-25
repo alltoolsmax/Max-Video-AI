@@ -67,6 +67,36 @@ class Engine {
     return path.join(os.homedir(), IS_MAC ? 'Library/Application Support/MaxAI-Engine' : 'MaxAI-Engine');
   }
 
+  // Tìm thư mục engine đã cài từ trước (vd. gỡ app rồi cài lại, mất settings) để dùng lại — không tải lại mô hình.
+  findExisting() {
+    const dirs = [];
+    if (IS_WIN) {
+      dirs.push(path.join(process.env.LOCALAPPDATA || os.homedir(), 'MaxAI-Engine'));
+      for (const d of 'CDEFGHIJKLMNOPQRSTUVWXYZ') dirs.push(d + ':\\MaxAI-Engine');
+    } else dirs.push(path.join(os.homedir(), IS_MAC ? 'Library/Application Support/MaxAI-Engine' : 'MaxAI-Engine'));
+    let best = null;
+    for (const dir of dirs) {
+      try {
+        if (!fs.existsSync(dir)) continue;
+        const ready = fs.existsSync(path.join(dir, 'machine.json'));
+        const models = fs.existsSync(path.join(dir, 'models'));
+        const score = (ready ? 2 : 0) + (models ? 1 : 0);
+        if (score && (!best || score > best.score)) best = { dir, score };
+      } catch { /* ổ không đọc được */ }
+    }
+    return best ? best.dir : null;
+  }
+
+  // Gọi khi mở app: chưa có thư mục engine trong settings mà máy đã có bản cài cũ → dùng lại.
+  adoptExisting() {
+    if (this.cfg.root) return false;
+    const dir = this.findExisting();
+    if (!dir) return false;
+    this.cfg.root = dir;
+    this.saveSettings();
+    return true;
+  }
+
   setRoot(dir) {
     this.cfg.root = path.resolve(dir);
     this.saveSettings();
