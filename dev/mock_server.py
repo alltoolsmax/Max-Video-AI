@@ -430,6 +430,10 @@ class Handler(BaseHTTPRequestHandler):
         return self.handle_extra('DELETE')
 
     def do_GET(self):
+        if urlsplit(self.path).path == '/gptmock/v1/models':
+            if self.headers.get('Authorization') != 'Bearer sk-good':
+                return self.send_json(401, dict(error=dict(message='Incorrect API key')))
+            return self.send_json(200, dict(data=[dict(id=m) for m in ('gpt-4o-mini', 'gpt-4o', 'gpt-4o-audio-preview', 'text-embedding-3-small')]))
         if urlsplit(self.path).path.startswith('/freevideo/') and not self.path.startswith(PREFIX):
             if self.mock_packs() is None:
                 self.send_json(404, {})
@@ -493,6 +497,25 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
+        if path.startswith('/gptmock/'):
+            body = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
+            user = body['messages'][-1]['content']; system = body['messages'][0]['content']
+            if '"lines"' in system and 'Input lines' in user:
+                n = len([l for l in user.splitlines() if l[:1].isdigit()])
+                out = dict(lines=['Cinematic detailed prompt number %d, golden light, slow dolly shot, ambient sound.' % (i + 1) for i in range(n)])
+            elif '"prompt"' in system:
+                out = dict(prompt='A detailed cinematic photo, soft window light, 85mm, shallow depth of field.')
+            elif '"shots"' in system:
+                out = dict(title='Chuyến xe dưới mưa', style='cinematic, warm film look', shots=[dict(action='Lan waits at a rainy bus stop.', seconds=8, camera='slow push-in', cast=['Lan'], lines=[dict(who='Lan', line='Mưa to quá...')]),
+                           dict(action='Minh arrives and opens his umbrella for both.', seconds=10, camera='two-shot', cast=['Lan', 'Minh'], lines=[dict(who='Minh', line='Đi chung ô nhé?')])])
+            else:
+                out = dict(lines=['Shot %d: Lan walks through Hoi An at dusk, lanterns glowing, cinematic.' % (i + 1) for i in range(4)])
+            return self.send_json(200, dict(choices=[dict(message=dict(content=json.dumps(out)))]))
+        if path == '/freevideo/library/delete-batch':
+            body = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
+            gone = [i for i in body.get('ids', []) if any(x['id'] == i for x in LIBRARY)]
+            LIBRARY[:] = [x for x in LIBRARY if x['id'] not in gone]
+            return self.send_json(200, dict(batch='b1', undo_seconds=10, deleted=gone, skipped=[]))
         if path.startswith('/freevideo/') and not path.startswith(PREFIX):
             self.rfile.read(int(self.headers.get('Content-Length') or 0))
         if path == '/freevideo/image-gen/pack-install':

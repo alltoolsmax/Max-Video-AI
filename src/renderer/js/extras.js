@@ -1,8 +1,8 @@
 'use strict';
-/* Cập nhật online, video hướng dẫn, thông tin ứng dụng, hộp thoại — giống GCloud Hub. Max AI miễn phí, không cần key. */
+/* Cập nhật online, video hướng dẫn, thông tin ứng dụng, hộp thoại — giống GCloud Hub. Max Video AI miễn phí, không cần key. */
 
 const APP_INFO = {
-  name: 'Max AI', author: 'Mr. Huỳnh', owner: 'Huỳnh Xuyên Sơn', year: 2026,
+  name: 'Max Video AI', author: 'Mr. Huỳnh', owner: 'Huỳnh Xuyên Sơn', year: 2026,
   slogan: 'Tạo video & ảnh AI ngay trên máy tính của bạn — miễn phí, không giới hạn, không gửi dữ liệu đi đâu',
   explore: 'https://mrhuynh.net/tools',
   contact: [
@@ -15,7 +15,7 @@ const APP_INFO = {
     { icon: 'movie', text: 'Tạo video có âm thanh từ mô tả — chạy MiniMax H3 ngay trên card đồ họa của bạn' },
     { icon: 'download', text: 'Tự tải mô hình và cài engine chỉ với một nút bấm — không cần cài thêm gì' },
     { icon: 'image', text: 'Tạo ảnh tới 16 MP, rồi biến ảnh thành video chỉ với một cú nhấp' },
-    { icon: 'auto_awesome', text: 'Viết lại bằng AI — biến ý tưởng ngắn thành prompt điện ảnh chi tiết' },
+    { icon: 'auto_awesome', text: 'Viết lại bằng ChatGPT — biến ý tưởng ngắn thành prompt điện ảnh chi tiết' },
     { icon: 'timer', text: 'Biết trước thời gian tạo trên đúng máy của bạn trước khi bấm Tạo' },
     { icon: 'fast_forward', text: 'Làm tiếp video có sẵn, tạo video dài tới 60 giây' },
     { icon: 'shield', text: 'Mọi thứ chạy trên máy bạn — không tải ảnh, video lên dịch vụ nào' },
@@ -95,7 +95,7 @@ async function openAbout() {
   openModal([
     h('button', { class: 'icon-btn x', style: { position: 'absolute', right: '14px', top: '14px' }, onclick: closeModal }, icon('close')),
     h('div', { class: 'about-head' }, h('img', { src: '../../assets/icon.png', alt: '' }),
-      h('h2', {}, 'Max AI ', h('span', { class: 'muted', style: { fontSize: '15px' } }, 'by Mr. Huỳnh')),
+      h('h2', {}, 'Max Video AI ', h('span', { class: 'muted', style: { fontSize: '15px' } }, 'by Mr. Huỳnh')),
       h('span', { class: 'ver' }, 'Phiên bản ' + info.version), h('p', {}, APP_INFO.slogan)),
     h('div', { class: 'contact-row' }, APP_INFO.contact.map((c) => h('a', { onclick: () => window.fv.open(c.href) },
       h('i', { style: { background: c.color } }, c.icon ? icon(c.icon, 'small') : c.text), c.label))),

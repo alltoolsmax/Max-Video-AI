@@ -98,7 +98,7 @@ function sourceCard(src, onChange) {
 
 /* ---------- Dự án dựng ẩn (để phụ đề / lồng tiếng chạy trên 1 video) ---------- */
 async function projectFromSource(src, name) {
-  const created = await api('POST', '/projects', { project: { name: (name || 'Max AI').slice(0, 80) } });
+  const created = await api('POST', '/projects', { project: { name: (name || 'Max Video AI').slice(0, 80) } });
   let project = created.project || created;
   const done = await api('POST', '/projects/' + project.id + '/operations', { revision: project.revision, operations: [{ op: 'insert', source: src.source, at: 0 }] });
   project = done.project || project;
@@ -148,7 +148,9 @@ function downloadText(text, name) {
 }
 
 // Cảnh báo khi thiếu gói mô hình cần cho trang
-function packNotice(text) {
+// Mô hình giờ được tải tự động khi mở app → không hiện khung nhắc "Cần gói…" nữa.
+function packNotice() { return document.createDocumentFragment(); }
+function packNoticeOld(text) {
   return h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('deployed_code'),
     h('div', {}, text, ' ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Mở Engine & mô hình')));
 }

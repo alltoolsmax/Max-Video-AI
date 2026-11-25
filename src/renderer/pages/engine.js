@@ -83,7 +83,7 @@ registerPage('engine', (() => {
   function render(root) {
     const page = h('div', { class: 'page', style: { maxWidth: '1100px' } });
     page.append(h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Engine & mô hình'),
-      h('div', { class: 'sub' }, 'Max AI tự cài engine và tải mô hình AI về chạy ngay trên máy của bạn — miễn phí, không giới hạn, không gửi dữ liệu đi đâu.'))));
+      h('div', { class: 'sub' }, 'Max Video AI tự cài engine và tải mô hình AI về chạy ngay trên máy của bạn — miễn phí, không giới hạn, không gửi dữ liệu đi đâu.'))));
     els.status = h('div');
     els.wizard = h('div');
     els.packs = h('div');
@@ -93,7 +93,7 @@ registerPage('engine', (() => {
           ['Windows 10/11 64-bit hoặc Linux, card NVIDIA RTX 30 trở lên', 'Tối thiểu 8 GB VRAM, 16 GB RAM (khuyên 12 GB+ / 32 GB)',
             'Driver NVIDIA 580 trở lên', 'Khoảng 70 GB ổ đĩa trống (thêm ~16 GB nếu tải mô hình ảnh)',
             'macOS: chip Apple M, 24 GB bộ nhớ (bản thử nghiệm)', 'Mạng ổn định lúc tải (~50 GB, tải tiếp được nếu đứt)'].map((t) => h('div', {}, icon('check_circle', 'fill'), t))),
-          h('div', { class: 'help mt' }, 'Bộ cài Max AI chỉ chứa ứng dụng và engine. Mô hình AI được tải về máy của bạn khi bấm Cài / Tải, rồi chạy hoàn toàn trên máy.'))));
+          h('div', { class: 'help mt' }, 'Bộ cài Max Video AI chỉ chứa ứng dụng và engine. Mô hình AI được tải về máy của bạn khi bấm Cài / Tải, rồi chạy hoàn toàn trên máy.'))));
     root.append(page);
     draw();
     refreshEngine();
@@ -199,7 +199,7 @@ registerPage('engine', (() => {
   async function packDo(p, action) {
     const r = await window.fv.engine.pack(p.id, action);
     if (!r.ok) toast(r.error.message, { kind: 'err' });
-    else if (action === 'install') toast('Bắt đầu tải ' + p.name, { kind: 'ok', sub: 'Có thể tiếp tục dùng Max AI trong lúc tải.' });
+    else if (action === 'install') toast('Bắt đầu tải ' + p.name, { kind: 'ok', sub: 'Có thể tiếp tục dùng Max Video AI trong lúc tải.' });
     setTimeout(loadPacks, 800);
   }
 
@@ -226,7 +226,7 @@ registerPage('engine', (() => {
         h('div', { class: 'row mt' },
           st.phase === 'running' ? h('button', { class: 'btn', onclick: engineStop }, icon('stop_circle'), 'Tắt engine') : null,
           st.installed && !['running', 'starting', 'installing', 'stopping'].includes(st.phase) ? h('button', { class: 'btn btn-primary', onclick: engineStart }, icon('play_arrow'), 'Bật engine') : null,
-          st.installed ? switchToggle('Tự bật khi mở Max AI', 'Engine tự tắt khi bạn đóng Max AI.', st.autostart, async (v) => { Eng.st = await window.fv.engine.autostart(v); }) : null),
+          st.installed ? switchToggle('Tự bật khi mở Max Video AI', 'Engine tự tắt khi bạn đóng Max Video AI.', st.autostart, async (v) => { Eng.st = await window.fv.engine.autostart(v); }) : null),
         st.phase === 'starting' && st.progress ? h('div', { class: 'notice info' }, icon('progress_activity', 'spin'), st.progress.label) : null)));
 
     if (st.phase === 'installing' || st.phase === 'planning') { els.wizard.append(progressCard(st)); return; }
@@ -264,7 +264,7 @@ registerPage('engine', (() => {
         st.rootChosen ? null : h('button', { class: 'btn btn-primary', onclick: async () => { Eng.st = await window.fv.engine.useDefault(); draw(); } }, icon('check'), 'Dùng thư mục này'))]);
     const planBody = [];
     if (!plan) {
-      planBody.push(h('div', { class: 'help', style: { marginTop: 0 } }, 'Max AI tải trình cài của engine (vài MB) rồi kiểm tra card đồ họa, bộ nhớ, ổ đĩa và mạng. Chưa cài gì cả.'),
+      planBody.push(h('div', { class: 'help', style: { marginTop: 0 } }, 'Max Video AI tải trình cài của engine (vài MB) rồi kiểm tra card đồ họa, bộ nhớ, ổ đĩa và mạng. Chưa cài gì cả.'),
         h('div', { class: 'row mt' }, h('button', { class: 'btn btn-primary', disabled: !st.rootChosen, onclick: doPlan }, icon('troubleshoot'), 'Kiểm tra máy')));
     } else {
       const disk = plan.disks[0] || {};
@@ -316,7 +316,7 @@ registerPage('engine', (() => {
     }
     body.append(h('details', { class: 'mt' }, h('summary', { class: 'muted', style: { cursor: 'pointer' } }, 'Nhật ký chi tiết'),
       h('div', { class: 'prompt-box', style: { fontFamily: 'Consolas, monospace', fontSize: '11.5px' } }, (st.log || []).join('\n') || '…')));
-    body.append(h('div', { class: 'help' }, 'Có thể dùng máy bình thường trong lúc tải. Đóng Max AI sẽ tạm dừng — mở lại và bấm Cài tiếp để tải tiếp.'),
+    body.append(h('div', { class: 'help' }, 'Có thể dùng máy bình thường trong lúc tải. Đóng Max Video AI sẽ tạm dừng — mở lại và bấm Cài tiếp để tải tiếp.'),
       h('div', { class: 'row mt' }, h('button', { class: 'btn btn-danger', onclick: async () => { await window.fv.engine.cancel(); refreshEngine(); } }, icon('pause_circle'), 'Tạm dừng')));
     return h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('download'), h('h2', {}, st.phase === 'planning' ? 'Đang kiểm tra máy' : 'Đang cài engine & tải mô hình')), body);
   }

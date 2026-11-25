@@ -41,19 +41,19 @@ const MODEL_LICENSES = [
 function legalSections() {
   return [
     h('h4', {}, '1. Bản quyền ứng dụng'),
-    h('p', {}, `Max AI (giao diện, hệ thống cập nhật, tên và biểu tượng) © ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Ứng dụng được chia sẻ miễn phí để sử dụng; không được bán lại, sửa đổi hay phát hành lại dưới tên khác khi chưa có đồng ý của tác giả. `
+    h('p', {}, `Max Video AI (giao diện, hệ thống cập nhật, tên và biểu tượng) © ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Ứng dụng được chia sẻ miễn phí để sử dụng; không được bán lại, sửa đổi hay phát hành lại dưới tên khác khi chưa có đồng ý của tác giả. `
       + 'Engine và các mô hình AI thuộc bản quyền của chủ sở hữu tương ứng, dùng theo giấy phép của họ (mục 4).'),
     h('h4', {}, '2. Khu vực được phép sử dụng'),
     h('div', { class: 'notice err', style: { margin: '6px 0' } }, icon('public_off'),
       h('div', {}, 'Mô hình MiniMax H3 ', h('b', {}, 'không được phép sử dụng'), ' tại ' + EXCLUDED + '. Không dùng, không phát hành nội dung tạo ra tại các khu vực này.')),
-    h('h4', {}, '3. Bạn cam kết KHÔNG dùng Max AI và nội dung tạo ra để:'),
+    h('h4', {}, '3. Bạn cam kết KHÔNG dùng Max Video AI và nội dung tạo ra để:'),
     h('ol', { class: 'legal-list' }, AUP.map((t) => h('li', {}, t))),
     h('div', { class: 'notice info', style: { margin: '6px 0' } }, icon('label'),
       h('div', {}, h('b', {}, 'Ghi nhãn nội dung AI: '), 'khi đăng video, ảnh lên mạng xã hội hay bất kỳ nơi công khai nào, bạn phải ghi rõ ràng là nội dung do AI tạo (ví dụ "Video tạo bằng AI").')),
     h('h4', {}, '4. Giấy phép mô hình'),
     h('table', { class: 'data legal-table' }, h('thead', {}, h('tr', {}, ['Thành phần', 'Giấy phép', 'Lưu ý'].map((t) => h('th', {}, t)))),
       h('tbody', {}, MODEL_LICENSES.map(([a, b, c]) => h('tr', {}, h('td', {}, a), h('td', {}, b), h('td', { class: 'small-text' }, c))))),
-    h('p', { class: 'small-text muted' }, 'Mô hình được tải trực tiếp từ nguồn phát hành chính thức về máy của bạn, không nằm trong bộ cài Max AI. '
+    h('p', { class: 'small-text muted' }, 'Mô hình được tải trực tiếp từ nguồn phát hành chính thức về máy của bạn, không nằm trong bộ cài Max Video AI. '
       + 'Bản tiếng Việt ở đây là tóm tắt; văn bản giấy phép gốc (tiếng Anh) là bản có hiệu lực — bấm "Đọc toàn văn giấy phép".'),
     h('h4', {}, '5. Miễn trừ trách nhiệm'),
     h('p', {}, 'Ứng dụng và mô hình được cung cấp "nguyên trạng", không kèm bảo đảm. Bạn tự chịu trách nhiệm về nội dung mình tạo ra và cách sử dụng nội dung đó. '
@@ -93,11 +93,11 @@ function openTerms({ required = false } = {}) {
         h('button', { class: 'btn btn-text', onclick: () => openLicenseText('thirdParty') }, icon('list_alt'), 'Thông báo bên thứ ba'),
         h('button', { class: 'btn btn-text', onclick: () => openLicenseText('apache') }, icon('code'), 'Giấy phép engine'));
       openModal([
-        modalHead(required ? 'Điều khoản sử dụng Max AI' : 'Giấy phép & điều khoản', 'gavel', !required),
+        modalHead(required ? 'Điều khoản sử dụng Max Video AI' : 'Giấy phép & điều khoản', 'gavel', !required),
         h('div', { class: 'legal-body' }, legalSections()),
         links,
         required ? h('div', { class: 'legal-checks' },
-          check(`Tôi không ở ${EXCLUDED} và sẽ không dùng Max AI hay nội dung tạo ra tại các khu vực này.`, (v) => { ok18 = v; }),
+          check(`Tôi không ở ${EXCLUDED} và sẽ không dùng Max Video AI hay nội dung tạo ra tại các khu vực này.`, (v) => { ok18 = v; }),
           check('Tôi đã đọc và đồng ý các điều khoản trên, giấy phép MiniMax H3 Community License và giấy phép của từng mô hình.', (v) => { okTerms = v; })) : null,
         h('div', { class: 'foot' }, required
           ? [h('button', { class: 'btn', onclick: () => window.fv.quit() }, icon('logout'), 'Không đồng ý & thoát'), accept]

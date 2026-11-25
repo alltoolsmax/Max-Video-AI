@@ -72,7 +72,7 @@ function errorText(error) {
   const code = error && error.code;
   if (code && ERROR_VI[code]) return ERROR_VI[code];
   const detail = JSON.stringify((error && error.details) || '') + ' ' + ((error && error.message) || '');
-  if (/front picture/i.test(detail)) return 'Thẻ nhân vật chưa có ảnh chính diện. Vào trang Nhân vật → bấm "AI vẽ", hoặc thêm ảnh và chọn góc "Chính diện".';
+  if (/front picture/i.test(detail)) return 'Thẻ nhân vật chưa có ảnh chính diện. Vào Kho ảnh tham chiếu → bấm "AI vẽ", hoặc thêm ảnh và chọn góc "Chính diện".';
   if (code === 'invalid_request' && /picture/i.test((error && error.message) || '')) {
     return 'Yêu cầu tạo ảnh không hợp lệ. Nếu có chọn nhân vật: cần gói "Tạo ảnh nhanh" (Qwen Image) và thẻ nhân vật phải có ảnh chính diện.';
   }
@@ -188,7 +188,7 @@ function navigate(route, params) {
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.route === route));
   App.current = page;
   App.currentRoute = route;
-  const title = { video: 'Tạo video', image: 'Tạo ảnh', queue: 'Hàng đợi', library: 'Thư viện', settings: 'Cài đặt', engine: 'Engine & mô hình', soon: 'Sắp có', edit: 'Sửa ảnh', cast: 'Nhân vật', autopilot: 'Autopilot', dubbing: 'Lồng tiếng', subtitles: 'Phụ đề' }[name];
+  const title = { video: 'Tạo video', image: 'Tạo ảnh', queue: 'Hàng đợi', library: 'Thư viện', settings: 'Cài đặt', engine: 'Engine & mô hình', soon: 'Sắp có', edit: 'Sửa ảnh', cast: 'Kho ảnh tham chiếu', autopilot: 'Autopilot', dubbing: 'Lồng tiếng', subtitles: 'Phụ đề' }[name];
   if ($('#pageTitle')) $('#pageTitle').textContent = title || '';
   page.render(content, Object.assign({ sub }, params || {}));
 }

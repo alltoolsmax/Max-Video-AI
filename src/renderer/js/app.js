@@ -1,5 +1,5 @@
 'use strict';
-/* Khởi động giao diện Max AI */
+/* Khởi động giao diện Max Video AI */
 
 (async function start() {
   App.config = await window.fv.config.get();
@@ -42,6 +42,12 @@
       return;
     }
     const c = App.caps;
+    const auto = Eng.st && Eng.st.auto;
+    if (auto && auto.stage === 'packs' && auto.pack) {
+      const pr = auto.pack.progress;
+      text.textContent = 'Đang tải mô hình: ' + auto.pack.name + (pr && pr.total ? ' ' + Math.floor(pr.done / pr.total * 100) + '%' : '…');
+      return;
+    }
     text.textContent = c ? 'Engine sẵn sàng' + (c.device && c.device.vram_limit_gib ? ' · ' + c.device.vram_limit_gib + ' GB VRAM' : '') : 'Engine sẵn sàng';
   });
   App.on('caps', () => App.emit('connection', { ok: App.connected }));
@@ -58,7 +64,7 @@
     const name = KINDS[job.kind] || 'Job';
     if (job.status === 'succeeded') {
       toast(name + ' đã xong', { kind: 'ok', sub: jobTitle(job), action: { label: 'Xem', run: () => { navigate('queue'); App.pages.queue.showJob(job.id); } } });
-      if (document.hidden && 'Notification' in window) { try { new Notification('Max AI', { body: name + ' đã xong: ' + jobTitle(job) }); } catch { /* bỏ qua */ } }
+      if (document.hidden && 'Notification' in window) { try { new Notification('Max Video AI', { body: name + ' đã xong: ' + jobTitle(job) }); } catch { /* bỏ qua */ } }
     } else if (job.status === 'failed') {
       toast(name + ' bị lỗi', { kind: 'err', sub: errorText(job.error) });
     }
@@ -66,6 +72,7 @@
 
   // Engine AI trong máy + cập nhật (máy chủ active.mrhuynh.net/maxai)
   App.on('engine', renderEngineCard);
+  App.on('engine', (st) => { if (!App.connected) App.emit('connection', { ok: false }); else App.emit('connection', { ok: true }); });
   window.fv.on('engine:status', (st) => {
     const was = Eng.st && Eng.st.phase;
     Eng.st = st; App.emit('engine', st);
@@ -75,10 +82,15 @@
 
   startTicker();
   $('#poweredBtn').onclick = () => openTerms();
-  await ensureTermsAccepted();
+  // Màn hình chào → (lần đầu) điều khoản → tự cài engine, tự bật, tự tải mô hình. Người dùng không cần làm gì.
+  if ((App.config.prefs || {}).termsAccepted !== TERMS_VERSION) {
+    await Splash.minDelay(); Splash.hide();
+    await ensureTermsAccepted();
+    Splash.show();
+  }
   await refreshEngine();
-  // Lần đầu (chưa cài engine) → mở trang cài engine.
-  navigate(App.config.hasToken || (Eng.st && Eng.st.installed) ? 'video' : 'engine');
+  navigate('video');
+  autoEngine();
   Poller.start();
   loadGuides();
   setInterval(() => { if (Eng.st && ['installing', 'planning', 'starting'].includes(Eng.st.phase)) refreshEngine(); }, 1500);
@@ -88,3 +100,45 @@
     if (r && r.ok && r.data.available) { $('#updatePill').classList.remove('hidden'); if (r.data.mandatory) checkUpdate({ info: r.data }); }
   }, 2500);
 })();
+
+// Tự cài / tự bật engine; màn hình chào giữ tới khi engine sẵn sàng. Lần đầu có thanh tiến độ tải mô hình.
+function autoEngine() {
+  const firstRun = !(Eng.st && Eng.st.installed);
+  const started = Date.now();
+  let done = false;
+  const finish = () => { if (done) return; done = true; Splash.hide(); };
+  const intoApp = { label: 'Vào app', run: () => { finish(); } };
+  const onState = (st) => {
+    if (done || !st) return;
+    const auto = st.auto || {};
+    if (st.phase === 'running') { finish(); return; }
+    if (auto.stage === 'error' || st.phase === 'failed') {
+      Splash.progress(viEngineError(auto.error || st.error || 'Engine không khởi động được'), 0, [
+        { label: 'Thử lại', primary: true, run: () => { Splash.progress('Đang thử lại…', null); window.fv.engine.auto(); } },
+        { label: 'Mở Engine & mô hình', run: () => { finish(); navigate('engine'); } }]);
+      return;
+    }
+    if (st.phase === 'installing' || auto.stage === 'install') {
+      const g = st.groups || [];
+      const total = g.reduce((n, x) => n + (x.total || 0), 0), ready = g.reduce((n, x) => n + (x.ready || 0), 0);
+      const speed = g.reduce((n, x) => n + (x.speed || 0), 0);
+      let frac = total ? ready / total : null, text = 'Lần đầu: đang chuẩn bị engine…';
+      if (total) {
+        const left = speed ? (total - ready) / speed : 0;
+        text = `Lần đầu: đang tải mô hình… ${Math.floor(frac * 100)}% · ${fmtBytes(ready)} / ${fmtBytes(total)}` + (left ? ' · còn ~' + fmtDuration(left) : '');
+      } else if (st.progress && st.progress.current) {
+        const c = st.progress.current;
+        text = 'Lần đầu: ' + (c.label || 'đang cài') + (c.total ? ' · ' + Math.floor((c.done / c.total) * 100) + '%' : '');
+        frac = c.total ? c.done / c.total : null;
+      }
+      Splash.progress(text, frac, [{ label: 'Chạy ngầm', run: () => finish() }]);
+      return;
+    }
+    if (st.phase === 'starting' || auto.stage === 'start' || st.phase === 'planning') {
+      if (firstRun || Date.now() - started > 6000) Splash.progress('Đang khởi động engine…', null, Date.now() - started > 20000 ? [intoApp] : []);
+    }
+  };
+  App.on('engine', onState);
+  window.fv.engine.auto().then((st) => { if (st) { Eng.st = st; onState(st); } });
+  setInterval(() => { if (!done) refreshEngine(); }, 2000);
+}

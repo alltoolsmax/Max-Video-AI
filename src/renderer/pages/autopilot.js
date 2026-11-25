@@ -98,7 +98,7 @@ registerPage('autopilot', (() => {
       } }, icon('add'), h('span', {}, 'Nhân vật không có thẻ'))));
       const loose = f.characters.filter((x) => !x.card);
       if (loose.length) chars.append(h('div', { class: 'help' }, 'Không có thẻ: ' + loose.map((x) => x.key).join(', ')));
-      if (!cast.length) chars.append(h('div', { class: 'help' }, 'Mẹo: tạo thẻ ở trang ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('cast'); } }, 'Nhân vật'), ' để AI giữ đúng mặt và giọng qua mọi cảnh.'));
+      if (!cast.length) chars.append(h('div', { class: 'help' }, 'Mẹo: thêm nhân vật vào ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('cast'); } }, 'Kho ảnh tham chiếu'), ' để AI giữ đúng mặt và giọng qua mọi cảnh.'));
     };
     drawChars();
     left.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('groups'), h('h2', {}, 'Nhân vật trong phim')), h('div', { class: 'card-body' }, chars)));
@@ -147,7 +147,8 @@ registerPage('autopilot', (() => {
       shotsBox.append(h('button', { class: 'btn btn-outline', style: { width: '100%' }, disabled: f.shots.length >= 40, onclick: () => { f.shots.push(blankShot()); drawShots(); } }, icon('add'), 'Thêm cảnh'));
     };
     drawShots();
-    left.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('view_carousel'), h('h2', {}, 'Các cảnh'), h('span', { class: 'hint' }, 'mỗi cảnh 4–15 giây, có thể cắt nhiều góc bên trong')),
+    left.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('view_carousel'), h('h2', {}, 'Các cảnh'), h('span', { class: 'hint' }, 'mỗi cảnh 4–15 giây'),
+      h('div', { class: 'grow' }), GPT.button('Viết kịch bản bằng ChatGPT', scriptWithGpt, 'movie_edit')),
       h('div', { class: 'card-body' }, shotsBox)));
 
     // Cột phải: số bản, ước tính, bắt đầu
@@ -163,6 +164,34 @@ registerPage('autopilot', (() => {
     els.planBox = planBox; els.start = start;
   }
 
+  // ChatGPT viết sẵn các cảnh (hành động, thời lượng, góc máy, ai xuất hiện, lời thoại) từ 1 ý tưởng
+  function scriptWithGpt() {
+    const idea = h('textarea', { class: 'textarea', rows: 4, placeholder: 'Ví dụ: Lan và Minh gặp nhau ở trạm xe buýt dưới mưa, cùng che chung ô, kết thúc ấm áp.' });
+    const count = slider({ min: 1, max: 20, value: Math.max(3, film.shots.filter((x) => x.action.trim()).length || 4), suffix: 'cảnh', onChange: () => {} });
+    const go = h('button', { class: 'btn btn-primary', onclick: async () => {
+      if (!idea.value.trim()) { idea.focus(); return; }
+      const n = Number(count.querySelector('input[type=range]').value);
+      const r = await GPT.run('autopilot', { idea: idea.value.trim(), count: n, characters: film.characters.map((c) => c.key) }, go);
+      if (!r || !Array.isArray(r.shots) || !r.shots.length) return;
+      closeModal();
+      const f = film;
+      if (!f.title.trim() && r.title) f.title = String(r.title).slice(0, 120);
+      if (!f.style.trim() && r.style) f.style = String(r.style).slice(0, 200);
+      const names = (list) => (Array.isArray(list) ? list : []).map((x) => String(x).slice(0, 40)).filter(Boolean);
+      for (const shot of r.shots) for (const who of [...names(shot.cast), ...(shot.lines || []).map((l) => String(l.who || '').slice(0, 40))]) {
+        if (who && !f.characters.some((c) => c.key === who)) f.characters.push({ key: who, look: '' });
+      }
+      f.shots = r.shots.slice(0, 40).map((x) => ({ action: String(x.action || '').trim(), seconds: Math.min(15, Math.max(4, Math.round(Number(x.seconds) || 10))),
+        camera: String(x.camera || ''), cast: names(x.cast), continue: false,
+        lines: (x.lines || []).filter((l) => l && l.who && l.line).map((l) => ({ who: String(l.who).slice(0, 40), line: String(l.line) })) }));
+      toast('ChatGPT đã viết ' + f.shots.length + ' cảnh — xem lại rồi bấm Bắt đầu Autopilot', { kind: 'ok' });
+      draw();
+    } }, icon('movie_edit'), 'Viết kịch bản');
+    openModal([modalHead('Viết kịch bản bằng ChatGPT', 'movie_edit'), field('Ý tưởng câu chuyện', idea, 'Viết tiếng Việt cũng được; lời thoại giữ tiếng Việt. Nhân vật đã chọn sẽ được dùng trong kịch bản.'),
+      field('Số cảnh', count), h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: closeModal }, 'Huỷ'), go)]);
+    setTimeout(() => idea.focus(), 0);
+  }
+
   function screenplay() {
     const f = film;
     const characters = {};
@@ -176,7 +205,7 @@ registerPage('autopilot', (() => {
       if (i > 0 && s.continue) shot.continue = true;
       return shot;
     });
-    const play = { title: f.title.trim() || 'Phim Max AI', aspect: f.aspect, characters, shots };
+    const play = { title: f.title.trim() || 'Phim Max Video AI', aspect: f.aspect, characters, shots };
     if (f.style.trim()) play.style = f.style.trim();
     return play;
   }
@@ -194,7 +223,7 @@ registerPage('autopilot', (() => {
       const total = (plan.preview && plan.preview.total) || f.shots.length * f.takes;
       els.planBox.append(h('div', { class: 'notice info' }, icon('schedule'),
         h('div', {}, h('b', {}, total + ' lần quay'), secs ? ' · ước tính ~' + fmtDuration(secs) + ' trên máy này' : '',
-          h('div', { class: 'small-text' }, 'Kịch bản hợp lệ. Có thể tắt Max AI ở màn hình khác trong lúc quay, nhưng đừng tắt engine.'))));
+          h('div', { class: 'small-text' }, 'Kịch bản hợp lệ. Có thể tắt Max Video AI ở màn hình khác trong lúc quay, nhưng đừng tắt engine.'))));
       if (!startIt) return;
       const r = await api('POST', '/drama', body);
       const made = r.drama || r;

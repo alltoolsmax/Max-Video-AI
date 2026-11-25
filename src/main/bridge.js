@@ -7,6 +7,7 @@ const { Connection, normalizeUrl } = require('./freevideo');
 const { Device } = require('./device');
 const { Engine, legalTexts } = require('./engine');
 const { Updater } = require('./updater');
+const { Gpt } = require('./gpt');
 const PKG = require('../../package.json');
 
 const MEDIA_EXT = {
@@ -27,6 +28,7 @@ class Bridge {
     this.quitApp = quit || (() => {});
     this.updater = new Updater({ device: this.device, quit, onProgress: (p) => this.emit('update:progress', p) });
     this.engine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
+    this.gpt = new Gpt({ settings: this.settings, save: () => this.save() });
     this.ready = null;
   }
 
@@ -60,7 +62,7 @@ class Bridge {
     return this.ready;
   }
 
-  // Đóng Max AI: tắt engine và dừng việc cài đang chạy (chạy lại sẽ tải tiếp).
+  // Đóng Max Video AI: tắt engine và dừng việc cài đang chạy (chạy lại sẽ tải tiếp).
   async shutdown() {
     try { this.engine.cancel(); } catch { /* bỏ qua */ }
     try { await this.engine.stop(); } catch { /* bỏ qua */ }
@@ -77,7 +79,7 @@ class Bridge {
   }
 
   // Lần đầu chạy: tự dò thư mục cài đặt và cổng.
-  // Max AI chỉ nói chuyện với ENGINE CỦA CHÍNH NÓ (thư mục cài trong mục Engine & mô hình), không dò phần mềm khác trên máy.
+  // Max Video AI chỉ nói chuyện với ENGINE CỦA CHÍNH NÓ (thư mục cài trong mục Engine & mô hình), không dò phần mềm khác trên máy.
   async autoConfigure() {
     this.engine.adoptExisting();
     const root = this.engine.root;
@@ -187,6 +189,33 @@ class Bridge {
         return wrap(() => this.engine.start());
       case 'engine:stop':
         return wrap(() => this.engine.stop());
+      case 'library:delete':   // xoá video trong Thư viện (engine giữ 10 giây để hoàn tác rồi xoá hẳn)
+        return wrap(async () => {
+          const url = this.engine.url;
+          if (!url) throw new Error('Engine chưa chạy.');
+          const ids = (Array.isArray(args.ids) ? args.ids : []).filter((x) => typeof x === 'string' && /^[\w.-]+\/[\w.-]+$/.test(x));
+          if (!ids.length) throw new Error('Chưa chọn video nào.');
+          const out = { deleted: 0, skipped: [] };
+          for (let i = 0; i < ids.length; i += 500) {
+            const res = await fetch(url + '/freevideo/library/delete-batch', { method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ ids: ids.slice(i, i + 500) }), signal: AbortSignal.timeout(60000) });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.reason ? 'Không xoá được: ' + j.reason : 'Không xoá được (HTTP ' + res.status + ')');
+            out.deleted += (j.deleted || j.moved || []).length || 0;
+            out.skipped.push(...(j.skipped || []));
+          }
+          return out;
+        });
+      case 'gpt:info':
+        return this.gpt.info();
+      case 'gpt:set':
+        return this.gpt.setKey(args.key, args.model);
+      case 'gpt:test':
+        return wrap(() => this.gpt.test(args && args.key));
+      case 'gpt:run':
+        return wrap(() => this.gpt.run(String(args.task || ''), args.input || {}));
+      case 'engine:auto':
+        return this.engine.auto();
       case 'engine:packs':
         return wrap(() => this.engine.packs());
       case 'engine:pack':

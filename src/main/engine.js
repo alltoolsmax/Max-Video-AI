@@ -1,6 +1,6 @@
 'use strict';
-// Max AI Engine — engine AI chạy NGAY TRÊN MÁY của người dùng, đóng gói sẵn trong bộ cài Max AI (thư mục engine/, chỉ là mã,
-// KHÔNG có mô hình). Sau khi người dùng mở Max AI và bấm Cài, engine mới tải môi trường + mô hình về máy rồi chạy local.
+// Max AI Engine — engine AI chạy NGAY TRÊN MÁY của người dùng, đóng gói sẵn trong bộ cài Max Video AI (thư mục engine/, chỉ là mã,
+// KHÔNG có mô hình). Sau khi người dùng mở Max Video AI và bấm Cài, engine mới tải môi trường + mô hình về máy rồi chạy local.
 //
 //  Bước 1  chép mã engine (đi kèm bộ cài) vào <thư mục cài>/engine
 //  Bước 2  kiểm tra máy: `setup --plan --json`  (GPU, VRAM, RAM, ổ đĩa, dung lượng tải)
@@ -33,6 +33,7 @@ const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
 const MAX_LOG = 400;
 const { packList, packAction } = require('./packs');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 class Engine {
   constructor({ settings, save, emit }) {
@@ -128,7 +129,7 @@ class Engine {
       machine: machine ? { gpu: machine.gpu_name || (machine.hardware && machine.hardware.gpu_name) || '', backend: machine.device_backend || 'cuda',
         vram_gib: machine.vram_gib, ram_gib: machine.ram_gib, format: machine.prepared_format || '' } : null,
       phase: this.state.phase, error: this.state.error || null, task: this.task ? this.task.kind : null,
-      progress: this.progress, groups: this.groups || null, downloading: this.task ? this.downloading || null : null, url: this.url, autostart: this.cfg.autostart !== false,
+      auto: this.autoState || null, progress: this.progress, groups: this.groups || null, downloading: this.task ? this.downloading || null : null, url: this.url, autostart: this.cfg.autostart !== false,
       log: this.log.slice(-60), plan: this.lastPlan,
     };
   }
@@ -152,7 +153,7 @@ class Engine {
     const want = bundledInfo();
     const info = this.sourceInfo();
     if (info && info.commit === want.commit && fs.existsSync(path.join(this.src, 'freevideo_engine'))) return info;
-    if (!bundled) throw new Error('Bộ cài Max AI thiếu thư mục engine. Hãy cài lại Max AI.');
+    if (!bundled) throw new Error('Bộ cài Max Video AI thiếu thư mục engine. Hãy cài lại Max Video AI.');
     if (this.host) await this.stop();
     this.progress = { label: 'Đang chuẩn bị Max AI Engine' };
     this.emit('engine:status', this.status());
@@ -190,7 +191,7 @@ class Engine {
     return { cmd: 'bash', args: [path.join(this.src, 'freevideo'), '--root', this.root, 'setup', ...args, ...(args.includes('--plan') ? [] : ['--no-launch'])], env };
   }
 
-  // Mọi thứ của engine nằm trong thư mục cài của Max AI — không dùng chung gì với phần mềm khác trên máy.
+  // Mọi thứ của engine nằm trong thư mục cài của Max Video AI — không dùng chung gì với phần mềm khác trên máy.
   isolatedEnv() {
     const env = { ...process.env, FREEVIDEO_HOME: this.root, FREEVIDEO_LAUNCHER_HOME: path.join(this.root, '.launcher'),
       FREEVIDEO_BOOTSTRAP_ROOT: path.join(this.root, '.bootstrap') };
@@ -372,12 +373,62 @@ class Engine {
     if (!child) return this.status();
     this.stopping = true;
     this.setPhase('stopping');
-    try { child.stdin.end(); } catch { /* đã đóng */ }       // engine_host tự tắt ComfyUI khi Max AI đóng ống nối
+    try { child.stdin.end(); } catch { /* đã đóng */ }       // engine_host tự tắt ComfyUI khi Max Video AI đóng ống nối
     await new Promise((r) => { const t = setTimeout(() => { killTree(child); r(); }, 15000); child.once('exit', () => { clearTimeout(t); r(); }); });
     return this.status();
   }
 
   setAutostart(v) { this.cfg.autostart = Boolean(v); this.saveSettings(); return this.status(); }
+
+  // ---------------- Tự động: mở app là tự cài engine (lần đầu), tự bật engine, tự tải mọi mô hình còn thiếu.
+  // Chạy ngầm trong tiến trình chính; giao diện chỉ theo dõi qua engine:status (status().auto).
+  auto() {
+    if (this.autoTask) return this.status();
+    this.autoState = { stage: 'checking', error: null, pack: null };
+    const say = (patch) => { this.autoState = { ...this.autoState, ...patch }; this.emit('engine:status', this.status()); };
+    this.autoTask = (async () => {
+      try {
+        if (!this.root) { this.adoptExisting(); if (!this.root) this.setRoot(this.defaultRoot()); }
+        if (!this.machine()) {
+          say({ stage: 'install' });
+          await this.install({});
+        }
+        if (this.state.phase !== 'running') {
+          say({ stage: 'start' });
+          if (this.task) await this.waitIdle();
+          if (this.state.phase !== 'running') await this.start();
+        }
+        say({ stage: 'packs' });
+        await this.autoPacks((pack) => say({ pack }));
+        say({ stage: 'done', pack: null });
+      } catch (e) {
+        say({ stage: 'error', error: e.message });
+      } finally { this.autoTask = null; }
+    })();
+    return this.status();
+  }
+
+  async waitIdle() { while (this.task) await new Promise((r) => setTimeout(r, 1000)); }
+
+  // Tải lần lượt từng gói mô hình còn thiếu (ảnh, phụ đề, AI viết prompt, lồng tiếng…). Gói máy không hỗ trợ thì bỏ qua.
+  async autoPacks(onPack) {
+    const ORDER = ['image-qwen', 'subtitle', 'vlm', 'dubbing', 'image-h3', 'segment', 'music'];
+    const tried = new Set();
+    for (let round = 0; round < 400; round++) {
+      if (this.state.phase !== 'running') return;          // người dùng tắt engine → dừng, lần mở sau tải tiếp
+      let list;
+      try { list = await this.packs(); } catch { await sleep(5000); continue; }
+      const busy = list.find((p) => p.busy && !p.core);
+      if (busy) { onPack({ id: busy.id, name: busy.name, progress: busy.progress }); await sleep(4000); continue; }
+      const next = ORDER.map((id) => list.find((p) => p.id === id))
+        .find((p) => p && !p.ready && p.available && !tried.has(p.id));
+      if (!next) return;
+      tried.add(next.id);
+      onPack({ id: next.id, name: next.name, progress: null });
+      try { await packAction(this.url, next.id, 'install'); } catch (e) { this.addLog('Không tải được ' + next.name + ': ' + e.message); }
+      await sleep(3000);
+    }
+  }
 
   // ---------------- Mô hình thêm (tải riêng từng gói, khi engine đang chạy)
   async packs() {
@@ -393,8 +444,8 @@ class Engine {
 }
 
 // ------------------------------------------------------------------ engine_host.py (chạy bằng Python của engine)
-const HOST_PY = String.raw`# Max AI · bật Max AI Engine (ComfyUI chạy ngầm ở 127.0.0.1) cho giao diện Max AI (tạo tự động, đừng sửa).
-# Chạy được trên Windows/macOS/Linux và tự tắt khi Max AI đóng.
+const HOST_PY = String.raw`# Max Video AI · bật Max AI Engine (ComfyUI chạy ngầm ở 127.0.0.1) cho giao diện Max Video AI (tạo tự động, đừng sửa).
+# Chạy được trên Windows/macOS/Linux và tự tắt khi Max Video AI đóng.
 import argparse, json, sys, threading, time
 from pathlib import Path
 
@@ -409,7 +460,7 @@ stop = threading.Event()
 
 def watch():
     try:
-        sys.stdin.read()          # Max AI đóng ống nối (thoát / bấm Tắt engine) → dừng
+        sys.stdin.read()          # Max Video AI đóng ống nối (thoát / bấm Tắt engine) → dừng
     except Exception:
         pass
     stop.set()
@@ -423,7 +474,7 @@ try:
     root = Path(args.root).resolve()
     machine = cs.ready_machine(root)
     if machine is None:
-        say('failed', error='Engine chưa cài xong. Hãy chạy Cài tiếp trong Max AI.')
+        say('failed', error='Engine chưa cài xong. Hãy chạy Cài tiếp trong Max Video AI.')
         sys.exit(2)
     source = cs.source_root()
     record = cs.installed(root)
@@ -436,7 +487,7 @@ try:
         deploy(record['root'], source, root)
     controller = Controller(Path(record['source']))
     if not controller.restore({'installation': dict(record, url='http://127.0.0.1:%d' % port)}):
-        say('failed', error='Cài đặt engine chưa hoàn tất. Hãy chạy Cài tiếp trong Max AI.')
+        say('failed', error='Cài đặt engine chưa hoàn tất. Hãy chạy Cài tiếp trong Max Video AI.')
         sys.exit(3)
     say('stage', label='Đang khởi động engine AI')
     controller._connect()

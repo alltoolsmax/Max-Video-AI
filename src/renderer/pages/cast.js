@@ -25,8 +25,8 @@ registerPage('cast', (() => {
   function render(root) {
     const page = h('div', { class: 'page' });
     page.append(h('div', { class: 'page-head' },
-      h('div', {}, h('h1', {}, 'Nhân vật'), h('div', { class: 'sub' }, 'Tạo thẻ cho nhân vật, bối cảnh, đạo cụ một lần — dùng lại để giữ đúng khuôn mặt, trang phục trong ảnh và phim Autopilot.')),
-      h('button', { class: 'btn btn-primary', onclick: () => openEditor() }, icon('person_add'), 'Thêm nhân vật')));
+      h('div', {}, h('h1', {}, 'Kho ảnh tham chiếu'), h('div', { class: 'sub' }, 'Lưu ảnh tham chiếu cho nhân vật, bối cảnh, đạo cụ một lần — dùng lại để giữ đúng khuôn mặt, trang phục trong ảnh và phim Autopilot.')),
+      h('button', { class: 'btn btn-primary', onclick: () => openEditor() }, icon('add_photo_alternate'), 'Thêm vào kho')));
     els.tabs = chipGroup([{ value: 'all', label: 'Tất cả' }, ...Object.entries(CAST_KINDS).map(([value, [label, ic]]) => ({ value, label, icon: ic }))],
       filter, (v) => { filter = v; draw(); });
     els.grid = h('div', { class: 'cast-grid' });

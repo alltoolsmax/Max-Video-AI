@@ -1,8 +1,8 @@
 {
   "name": "max-ai",
   "productName": "Max AI",
-  "version": "1.3.4",
-  "description": "Max AI by Mr. Huỳnh — miễn phí, tự tải mô hình và tạo video & ảnh AI ngay trên máy (engine FreeVideo / MiniMax H3)",
+  "version": "1.4.0",
+  "description": "Max Video AI by Mr. Huỳnh — miễn phí, tự tải mô hình và tạo video & ảnh AI ngay trên máy (MiniMax H3)",
   "main": "src/main/main.js",
   "author": "Mr. Huỳnh",
   "license": "UNLICENSED",
@@ -45,7 +45,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Max AI",
+      "shortcutName": "Max Video AI",
       "artifactName": "MaxAI-Setup-${version}.exe",
       "installerIcon": "assets/icon.ico",
       "deleteAppDataOnUninstall": false
@@ -65,7 +65,7 @@
       ]
     },
     "dmg": {
-      "title": "Max AI",
+      "title": "Max Video AI",
       "artifactName": "MaxAI-${version}-${arch}.dmg"
     },
     "linux": {

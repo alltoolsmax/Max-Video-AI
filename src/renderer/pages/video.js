@@ -25,26 +25,20 @@ registerPage('video', (() => {
 
   function defaults() {
     return {
-      mode: pref('videoMode', 'simple'), visual: '', sound: '', music: '', raw: '',
+      text: '',   // mỗi dòng = 1 video
       aspect: pref('videoAspect', '16:9'), seconds: pref('videoSeconds', 10), quality: pref('videoQuality', 'light'),
       takes: 1, seedRandom: true, seed: 0, preview: false,
       first: null, last: null, references: [], loras: [], continueFrom: null, firstFrameReference: false,
     };
   }
 
-  function composedPrompt() {
-    if (state.mode === 'raw') return state.raw.trim();
-    if (!state.visual.trim()) return '';
-    return [
-      'integrated_multimodal_description: ' + state.visual.trim(),
-      'overall_soundscape: ' + (state.sound.trim() || 'N/A'),
-      'non_diegetic_music: ' + (state.music.trim() || 'N/A'),
-    ].join('\n\n');
-  }
+  // Mỗi dòng không trống là 1 prompt = 1 video
+  const promptLines = () => state.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  function composedPrompt() { return promptLines()[0] || ''; }
 
-  function buildSpec() {
-    const spec = { kind: 'generate', prompt: composedPrompt(), aspect: state.aspect, seconds: Number(state.seconds), quality: state.quality };
-    spec.label = labelFrom(state.mode === 'raw' ? state.raw : state.visual) || undefined;
+  function buildSpec(prompt = composedPrompt()) {
+    const spec = { kind: 'generate', prompt, aspect: state.aspect, seconds: Number(state.seconds), quality: state.quality };
+    spec.label = labelFrom(prompt) || undefined;
     if (!state.seedRandom) spec.seed = Number(state.seed) || 0;
     if (state.preview) spec.preview = true;
     if (state.takes > 1) spec.takes = state.takes;
@@ -78,18 +72,13 @@ registerPage('video', (() => {
     const right = h('div', { class: 'sticky-col' });
     page.append(h('div', { class: 'layout-2' }, left, right));
 
-    /* Prompt */
+    /* Prompt: 1 khung, mỗi dòng 1 video */
     els.continueBanner = h('div');
     els.promptBody = h('div', { class: 'card-body' });
-    const tabs = h('div', { class: 'tabs' },
-      h('button', { class: 'tab', 'data-mode': 'simple', onclick: () => setMode('simple') }, 'Đơn giản'),
-      h('button', { class: 'tab', 'data-mode': 'raw', onclick: () => setMode('raw') }, 'Prompt đầy đủ'));
-    els.tabs = tabs;
-    els.enhanceBtn = h('button', { class: 'btn btn-outline', onclick: enhancePrompt, title: 'Dùng AI chạy trên máy viết lại thành prompt chi tiết' },
-      icon('auto_awesome'), 'Viết lại bằng AI');
+    els.lineCount = h('span', { class: 'pill' });
     left.append(els.continueBanner, h('div', { class: 'card' },
-      h('div', { class: 'card-head' }, h('h2', {}, 'Mô tả video'), h('div', { class: 'grow' }), els.enhanceBtn),
-      tabs, els.promptBody));
+      h('div', { class: 'card-head' }, icon('edit_note'), h('h2', {}, 'Prompt'), h('span', { class: 'hint' }, 'mỗi dòng = 1 video'), h('div', { class: 'grow' }), els.lineCount),
+      els.promptBody));
     renderPromptBody();
 
     /* Khung hình & tham chiếu */
@@ -122,43 +111,28 @@ registerPage('video', (() => {
           'Video dài hơn 15 giây sẽ được tạo thành nhiều phần rồi tự ghép lại (thử nghiệm).'),
         field('Chất lượng', els.quality, 'Mức cao hơn đẹp hơn nhưng lâu hơn. Nên thử ý tưởng ở mức Nhanh trước.'))));
 
-    /* Nâng cao */
-    const seedInput = h('input', { class: 'input num', type: 'number', min: 0, value: state.seed, disabled: state.seedRandom, onchange: (e) => { state.seed = e.target.value; schedulePlan(); } });
-    const takes = chipGroup([1, 2, 3, 4].map((n) => ({ value: n, label: n + ' bản' })), state.takes, (v) => { state.takes = v; schedulePlan(); });
-    els.previewSwitch = switchToggle('Xem trước nhanh', 'Tạo bản nửa độ phân giải trước; bản nào ưng mới "Hoàn thiện" (chỉ với mức chất lượng có 2 lượt).',
-      state.preview, (v) => { state.preview = v; schedulePlan(); });
-    els.loras = h('div');
-    renderLoras();
-    left.append(h('details', { class: 'card' },
-      h('summary', { class: 'card-head' }, icon('science'), h('h2', {}, 'Nâng cao'), h('div', { class: 'grow' }), icon('expand_more', 'chev')),
-      h('div', { class: 'card-body' },
-        field('Số bản tạo cùng lúc', takes, 'Mỗi bản dùng seed khác nhau để bạn chọn bản đẹp nhất.'),
-        field('Seed', h('div', { class: 'row' },
-          switchToggle('Ngẫu nhiên', null, state.seedRandom, (v) => { state.seedRandom = v; seedInput.disabled = v; schedulePlan(); }), seedInput),
-          'Giữ cùng seed + cùng prompt để tạo lại đúng kết quả.'),
-        field(null, els.previewSwitch),
-        field('LoRA', els.loras, 'Thêm phong cách/nhân vật từ LoRA cộng đồng cho MiniMax H3.'))));
-
     /* Cột phải: tóm tắt + nút tạo + kết quả */
     els.summary = h('div', { class: 'card-body' });
-    els.generateBtn = h('button', { class: 'btn btn-primary btn-hero', onclick: submit }, icon('movie'), 'Tạo video', h('span', { class: 'kbd' }, 'Ctrl ↵'));
+    els.generateBtn = h('button', { class: 'btn btn-primary btn-hero', onclick: () => submit(false) }, icon('movie'), els.genLabel = h('span', {}, 'Tạo video'), h('span', { class: 'kbd' }, 'Ctrl ↵'));
+    els.previewBtn = h('button', { class: 'btn btn-outline', style: { width: '100%', padding: '12px' }, onclick: () => submit(true) }, icon('preview'), 'Tạo bản xem trước');
     right.append(h('div', { class: 'card', style: { marginBottom: 0 } },
       h('div', { class: 'card-head' }, h('h2', {}, 'Tóm tắt')), els.summary,
-      h('div', { class: 'card-foot', style: { display: 'block' } }, els.generateBtn, aiLabelNote())));
+      h('div', { class: 'card-foot', style: { display: 'block' } }, els.previewBtn,
+        h('div', { class: 'help', style: { margin: '4px 0 10px' } }, 'Bản nhanh, nửa độ phân giải — ưng rồi bấm "Hoàn thiện" ở kết quả để ra bản đẹp.'),
+        els.generateBtn, aiLabelNote())));
     els.results = h('div');
     right.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Kết quả gần đây'), h('div', { class: 'grow' }),
       h('button', { class: 'btn btn-text', onclick: () => navigate('library') }, 'Thư viện')), h('div', { class: 'card-body' }, els.results)));
 
     root.append(page);
     renderContinue();
-    updateEnhance();
     renderSummary();
     showRecent(App.jobs);
     schedulePlan(10);
 
     unsub = [
       App.on('jobs', showRecent),
-      App.on('caps', () => { updateEnhance(); renderLoras(); if (App.caps.limits) els.duration.setMax(App.caps.limits.seconds[1]); schedulePlan(); }),
+      App.on('caps', () => { if (App.caps.limits) els.duration.setMax(App.caps.limits.seconds[1]); schedulePlan(); }),
       App.on('connection', () => schedulePlan()),
     ];
     document.addEventListener('keydown', onKey);
@@ -172,45 +146,62 @@ registerPage('video', (() => {
   }
 
   function onKey(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); submit(); }
-  }
-
-  function setMode(mode) {
-    if (mode === state.mode) return;
-    if (mode === 'raw' && !state.raw.trim()) state.raw = composedPrompt();
-    state.mode = mode;
-    setPref('videoMode', mode);
-    renderPromptBody();
-    schedulePlan();
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); submit(false); }
   }
 
   function renderPromptBody() {
-    els.tabs.querySelectorAll('.tab').forEach((t) => t.classList.toggle('on', t.dataset.mode === state.mode));
     const body = els.promptBody;
     body.innerHTML = '';
-    if (state.mode === 'simple') {
-      const visual = h('textarea', { class: 'textarea big', placeholder: 'Ví dụ: A slow tracking shot follows a girl in áo dài walking through Hoi An at night, lanterns glowing…', oninput: (e) => { state.visual = e.target.value; counter.textContent = e.target.value.length + ' ký tự'; schedulePlan(); } });
-      visual.value = state.visual;
-      const counter = h('div', { class: 'counter' }, state.visual.length + ' ký tự');
-      const sound = h('textarea', { class: 'textarea', rows: 2, placeholder: 'Tiếng mưa, tiếng xe máy xa xa, tiếng bước chân… (để trống = im lặng)', oninput: (e) => { state.sound = e.target.value; schedulePlan(); } });
-      sound.value = state.sound;
-      const music = h('textarea', { class: 'textarea', rows: 2, placeholder: 'Piano nhẹ, nhịp chậm… (để trống = không nhạc)', oninput: (e) => { state.music = e.target.value; schedulePlan(); } });
-      music.value = state.music;
-      const ideas = h('div', { class: 'chips' }, VIDEO_IDEAS.map((idea) => h('button', { class: 'chip suggest', type: 'button', onclick: () => {
-        Object.assign(state, { visual: idea.visual, sound: idea.sound, music: idea.music }); renderPromptBody(); schedulePlan();
-      } }, icon('lightbulb', 'small'), idea.label)));
-      body.append(
-        field('Hình ảnh & chuyển động', h('div', {}, visual, counter),
-          'Mô tả chủ thể, hành động, góc máy và ánh sáng. Viết tiếng Anh cho kết quả tốt nhất; lời thoại có thể để tiếng Việt trong ngoặc kép.'),
-        h('div', { class: 'grid-2' }, field('Âm thanh', sound, null, true), field('Nhạc nền', music, null, true)),
-        field('Gợi ý nhanh', ideas));
-      setTimeout(() => visual.focus(), 0);
-    } else {
-      const raw = h('textarea', { class: 'textarea mono', spellcheck: false, oninput: (e) => { state.raw = e.target.value; schedulePlan(); },
-        placeholder: 'integrated_multimodal_description: [Shot 1] …\n\noverall_soundscape: …\n\nnon_diegetic_music: …' });
-      raw.value = state.raw;
-      body.append(field(null, raw, h('span', {}, 'Định dạng prompt của MiniMax H3: mỗi phần một dòng "tên: nội dung", cách nhau 1 dòng trống. Có thể chia cảnh bằng [Shot 1], [Shot 2] At 00:03.000 …')));
-    }
+    const ta = h('textarea', { class: 'textarea big prompt-lines', spellcheck: false,
+      placeholder: 'Mỗi dòng là 1 video. Ví dụ:\nA young woman in a white áo dài walks through Hoi An at sunset, lanterns glowing, slow dolly shot.\nClose-up of iced coffee dripping into a glass, morning light, cinematic.',
+      oninput: (e) => { state.text = e.target.value; countLines(); schedulePlan(); } });
+    ta.value = state.text;
+    els.promptArea = ta;
+    const ideas = h('div', { class: 'chips' }, VIDEO_IDEAS.map((idea) => h('button', { class: 'chip suggest', type: 'button', onclick: () => {
+      const line = [idea.visual, 'Sound: ' + idea.sound, 'Music: ' + idea.music].join(' ');
+      state.text = state.text.trim() ? state.text.replace(/\s*$/, '') + '\n' + line : line;
+      ta.value = state.text; countLines(); schedulePlan();
+    } }, icon('lightbulb', 'small'), idea.label)));
+    const rewrite = GPT.button('Viết lại bằng ChatGPT', rewriteWithGpt);
+    const script = GPT.button('Viết kịch bản bằng ChatGPT', scriptWithGpt, 'movie_edit');
+    body.append(field(null, ta, 'Viết tiếng Anh cho kết quả tốt nhất; lời thoại có thể để tiếng Việt trong ngoặc kép. Dán nhiều dòng để tạo hàng loạt.'),
+      h('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap' } }, h('span', { class: 'gpt-pill', style: { marginLeft: 0 } }, icon('bolt', 'small'), 'ChatGPT'), rewrite, script),
+      field('Gợi ý nhanh', ideas));
+    countLines();
+    setTimeout(() => ta.focus(), 0);
+  }
+  function countLines() {
+    const n = promptLines().length;
+    els.lineCount.textContent = n + ' video';
+    els.lineCount.style.visibility = n ? 'visible' : 'hidden';
+    if (els.genLabel) els.genLabel.textContent = n > 1 ? 'Tạo ' + n + ' video' : 'Tạo video';
+  }
+
+  async function rewriteWithGpt(btn) {
+    const lines = promptLines();
+    if (!lines.length) { toast('Hãy viết vài ý tưởng trước (mỗi dòng 1 video), ChatGPT sẽ viết lại chi tiết', { kind: 'err' }); return; }
+    const r = await GPT.run('video', { lines, seconds: Number(state.seconds) }, btn);
+    if (!r || !Array.isArray(r.lines)) return;
+    state.text = r.lines.map((l) => String(l).replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).join('\n');
+    renderPromptBody(); schedulePlan();
+    toast('ChatGPT đã viết lại ' + r.lines.length + ' prompt — sửa thêm nếu muốn rồi bấm Tạo', { kind: 'ok' });
+  }
+  function scriptWithGpt() {
+    const idea = h('textarea', { class: 'textarea', rows: 4, placeholder: 'Ví dụ: Một cô gái bán cà phê ở Hội An gặp lại người bạn cũ dưới mưa, kết thúc ấm áp.' });
+    const count = slider({ min: 1, max: 20, value: 4, suffix: 'cảnh', onChange: () => {} });
+    const go = h('button', { class: 'btn btn-primary', onclick: async () => {
+      if (!idea.value.trim()) { idea.focus(); return; }
+      const n = Number(count.querySelector('input[type=range]').value);
+      const r = await GPT.run('lines', { idea: idea.value.trim(), count: n, seconds: Number(state.seconds) }, go);
+      if (!r || !Array.isArray(r.lines)) return;
+      closeModal();
+      state.text = r.lines.map((l) => String(l).replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).join('\n');
+      renderPromptBody(); schedulePlan();
+      toast('ChatGPT đã viết ' + r.lines.length + ' cảnh — mỗi dòng 1 video', { kind: 'ok' });
+    } }, icon('movie_edit'), 'Viết kịch bản');
+    openModal([modalHead('Viết kịch bản bằng ChatGPT', 'movie_edit'), field('Ý tưởng câu chuyện', idea, 'Viết tiếng Việt cũng được. Lời thoại sẽ giữ tiếng Việt.'),
+      field('Số cảnh (mỗi cảnh 1 video)', count), h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: closeModal }, 'Huỷ'), go)]);
+    setTimeout(() => idea.focus(), 0);
   }
 
   function renderRefs() {
@@ -224,11 +215,6 @@ registerPage('video', (() => {
     }
   }
 
-  function renderLoras() {
-    if (!els.loras) return;
-    els.loras.innerHTML = '';
-    els.loras.append(loraEditor((App.caps && App.caps.loras) || [], state.loras, (list) => { state.loras = list; schedulePlan(); }));
-  }
 
   function renderContinue() {
     els.continueBanner.innerHTML = '';
@@ -240,12 +226,6 @@ registerPage('video', (() => {
       h('div', { class: 'help' }, 'Mô tả đoạn tiếp theo; thời lượng là độ dài phần thêm vào.'))));
   }
 
-  function updateEnhance() {
-    const ready = Boolean(App.caps && App.caps.features && App.caps.features.enhance);
-    els.enhanceBtn.disabled = !App.connected || !ready;
-    els.enhanceBtn.title = ready ? 'Dùng AI chạy trên máy viết lại ý tưởng thành prompt chi tiết'
-      : 'AI viết prompt chưa có — tải gói "AI viết prompt" ở mục Engine & mô hình';
-  }
 
   /* ---------- Ước tính (POST /plan) ---------- */
   function schedulePlan(delay = 600) {
@@ -297,62 +277,39 @@ registerPage('video', (() => {
       box.append(h('div', { class: 'notice err' }, icon('error'), h('div', {}, errorText(lastPlanError),
         lastPlanError.next ? h('div', { class: 'small-text' }, lastPlanError.next) : null)));
     }
-    if (!prompt) box.append(h('div', { class: 'notice info' }, icon('edit'), h('div', {}, 'Nhập mô tả video để bắt đầu.')));
+    const n = promptLines().length;
+    if (n > 1) box.append(h('div', { class: 'notice info' }, icon('playlist_play'), h('div', {}, n + ' video sẽ được tạo lần lượt' + (lastPlan && lastPlan.estimate && lastPlan.estimate.seconds ? ' · tổng ~' + fmtDuration(lastPlan.estimate.seconds * n) : '') + '.')));
+    if (!prompt) box.append(h('div', { class: 'notice info' }, icon('edit'), h('div', {}, 'Nhập prompt để bắt đầu — mỗi dòng 1 video.')));
     els.generateBtn.disabled = !prompt || !App.connected;
+    els.previewBtn.disabled = !prompt || !App.connected;
   }
 
   /* ---------- Gửi job ---------- */
-  async function submit() {
-    const spec = buildSpec();
-    if (!spec.prompt) { toast('Hãy nhập mô tả video', { kind: 'err' }); return; }
-    els.generateBtn.disabled = true;
+  async function submit(preview) {
+    const lines = promptLines();
+    if (!lines.length) { toast('Hãy nhập prompt (mỗi dòng 1 video)', { kind: 'err' }); return; }
+    els.generateBtn.disabled = true; els.previewBtn.disabled = true;
+    let sent = 0;
     try {
-      const reply = await api('POST', '/jobs', spec);
-      const jobs = reply.jobs || [reply.job];
-      toast(jobs.length > 1 ? 'Đã gửi ' + jobs.length + ' video vào hàng đợi' : 'Đã gửi video vào hàng đợi', { kind: 'ok',
+      for (const line of lines) {
+        const spec = buildSpec(line);
+        if (preview) {
+          spec.preview = true;
+          if (spec.quality === 'light') spec.quality = 'medium';   // bản xem trước cần chất lượng 2 lượt; "Hoàn thiện" ra bản Cân bằng
+        }
+        const reply = await api('POST', '/jobs', spec);
+        const jobs = reply.jobs || [reply.job];
+        for (const w of reply.warnings || []) toast(w);
+        for (const job of jobs.slice().reverse()) addCard(job, true);
+        sent += jobs.length;
+      }
+      toast((preview ? 'Đã gửi ' + sent + ' bản xem trước' : sent > 1 ? 'Đã gửi ' + sent + ' video' : 'Đã gửi video') + ' vào hàng đợi', { kind: 'ok',
         action: { label: 'Xem hàng đợi', run: () => navigate('queue') } });
-      for (const w of reply.warnings || []) toast(w);
-      for (const job of jobs.slice().reverse()) addCard(job, true);
       Poller.soon(500);
     } catch (error) {
-      toastError(error, 'Không gửi được');
+      toastError(error, sent ? 'Đã gửi ' + sent + ' video, dòng tiếp theo bị lỗi' : 'Không gửi được');
     } finally {
-      els.generateBtn.disabled = false;
-    }
-  }
-
-  async function enhancePrompt() {
-    const text = state.mode === 'raw' ? state.raw : [state.visual, state.sound && 'Sound: ' + state.sound, state.music && 'Music: ' + state.music].filter(Boolean).join('\n');
-    if (!text.trim()) { toast('Hãy viết vài ý tưởng trước, AI sẽ viết lại chi tiết', { kind: 'err' }); return; }
-    const btn = els.enhanceBtn;
-    btn.disabled = true;
-    btn.innerHTML = '';
-    btn.append(icon('progress_activity', 'spin'), 'AI đang viết…');
-    try {
-      const body = { kind: 'enhance', text, seconds: Number(state.seconds), label: 'Viết prompt: ' + labelFrom(text).slice(0, 90) };
-      const media = {};
-      if (state.first) media.first = { file: state.first.file };
-      if (state.last) media.last = { file: state.last.file };
-      if (state.references.length && !state.first && !state.last) media.references = state.references.map((r) => ({ file: r.file }));
-      if (Object.keys(media).length) body.media = media;
-      const reply = await api('POST', '/jobs', body);
-      let job = reply.job;
-      while (ACTIVE.has(job.status)) {
-        await new Promise((r) => setTimeout(r, 1000));
-        job = await api('GET', '/jobs/' + job.id + '?wait=10');
-      }
-      if (job.status !== 'succeeded' || !job.result || !job.result.text) throw new ApiError(job.error || { message: 'AI không trả về prompt' });
-      state.raw = job.result.text;
-      state.mode = 'raw';
-      renderPromptBody();
-      schedulePlan();
-      toast('Đã viết lại prompt — bạn có thể sửa thêm trước khi tạo', { kind: 'ok' });
-    } catch (error) {
-      toastError(error, 'Không viết lại được');
-    } finally {
-      btn.innerHTML = '';
-      btn.append(icon('auto_awesome'), 'Viết lại bằng AI');
-      updateEnhance();
+      renderSummary();
     }
   }
 
@@ -392,14 +349,13 @@ registerPage('video', (() => {
   function applyHandoff(handoff) {
     const spec = handoff.spec;
     if (spec) {
-      if (typeof spec.prompt === 'string') { state.raw = spec.prompt; state.mode = 'raw'; }
+      if (typeof spec.prompt === 'string') state.text = spec.prompt.replace(/\s*\n+\s*/g, ' ').trim();
       if (spec.seconds) state.seconds = Math.round(spec.seconds);
       if (spec.quality) state.quality = spec.quality;
       if (spec.aspect) state.aspect = spec.aspect;
-      if (spec.seed !== undefined && spec.seed !== null) { state.seedRandom = false; state.seed = spec.seed; }
-      if (Array.isArray(spec.loras)) state.loras = spec.loras.map((l) => (typeof l === 'string' ? { name: l, strength: 1 } : { name: l.name, strength: l.strength ?? 1 }));
+      if (spec.seed !== undefined && spec.seed !== null) { state.seedRandom = false; state.seed = spec.seed; }   // Dùng lại = đúng seed cũ
     }
-    if (handoff.prompt) { state.raw = handoff.prompt; state.mode = 'raw'; }
+    if (handoff.prompt) state.text = String(handoff.prompt).replace(/\s*\n+\s*/g, ' ').trim();
     if (handoff.first) state.first = handoff.first;
     if (handoff.continueFrom) state.continueFrom = handoff.continueFrom;
   }

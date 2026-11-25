@@ -24,7 +24,7 @@ function createWindow() {
   const theme = savedTheme();
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1100, minHeight: 700,
-    title: 'Max AI by Mr. Huỳnh', backgroundColor: theme === 'light' ? '#f4f6fb' : '#0b1020', show: false,
+    title: 'Max Video AI by Mr. Huỳnh', backgroundColor: theme === 'light' ? '#f4f6fb' : '#0b1020', show: false,
     icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#00000000', symbolColor: theme === 'light' ? '#334155' : '#cbd5e1', height: 40 },
@@ -96,7 +96,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-// Đóng Max AI → tắt engine AI (ComfyUI) và dừng việc tải mô hình đang chạy (lần sau tải tiếp).
+// Đóng Max Video AI → tắt engine AI (ComfyUI) và dừng việc tải mô hình đang chạy (lần sau tải tiếp).
 let quitting = false;
 app.on('before-quit', (event) => {
   if (quitting || !bridge) return;

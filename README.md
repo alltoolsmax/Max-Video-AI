@@ -1,10 +1,19 @@
-# Max AI by Mr. Huỳnh
+# Max Video AI by Mr. Huỳnh
 
 © 2026 Huỳnh Xuyên Sơn (Mr. Huỳnh) · Zalo 0979 007 367 · info@mrhuynh.net · mrhuynh.net
 
 Ứng dụng desktop **miễn phí** tạo video và ảnh AI **ngay trên máy tính của bạn**. Không cần key, không có gói trả phí.
 App chạy độc lập: bộ cài chứa sẵn **Max AI Engine**. Không cần cài phần mềm nào khác. Mô hình AI **không** nằm trong bộ cài, app tải mô hình về máy khi bạn bấm Cài / Tải, rồi chạy hoàn toàn trên máy (MiniMax H3 / VDN-H3, chạy được từ 8 GB VRAM).
 Giao diện cùng tông với GCloud Hub. Đếm máy, cập nhật online và video hướng dẫn dùng chung trang quản trị `active.mrhuynh.net/admin`.
+
+
+## Mới ở 1.4
+- Tên **Max Video AI**, logo mới, màn hình chào có hiệu ứng.
+- Mở app là **tự động**: lần đầu tự cài engine và tự tải mọi mô hình (có thanh tiến độ), các lần sau engine tự bật — người dùng không cần thao tác gì.
+- **ChatGPT** (API key của người dùng, lưu mã hoá trên máy): viết lại prompt, viết kịch bản (Tạo video nhiều dòng, Autopilot).
+- Tạo video: 1 khung prompt, mỗi dòng 1 video; nút **Tạo bản xem trước**; bỏ mục Nâng cao.
+- Tạo ảnh: ô Ảnh bắt đầu → Ảnh kết thúc, mục Ảnh tham chiếu; menu "Kho ảnh tham chiếu".
+- Thư viện: chọn nhiều, xoá từng video, xoá các mục đã chọn, xoá toàn bộ.
 
 ## Tính năng
 | Trang | Mô tả |
@@ -36,7 +45,7 @@ Cấu hình cần có:
 - Khoảng 70 GB ổ trống.
 - macOS chip Apple M: bản thử nghiệm.
 
-## Trang quản trị (active.mrhuynh.net/admin › ⚡ Max AI)
+## Trang quản trị (active.mrhuynh.net/admin › ⚡ Max Video AI)
 Có các mục:
 - **Tổng quan**: máy đang mở, máy hoạt động 24 giờ / 30 ngày, tổng máy, phiên bản đang dùng.
 - **Máy đã cài.**
@@ -50,15 +59,15 @@ Dữ liệu để riêng ở `active_private/maxai/`, không đụng tới Video
 1. Bấm đúp `chuan-bi-hosting.bat` (hoặc chạy `node tools/prepare-hosting.js`). Kết quả: `hosting\upload\MaxAI-hosting.zip`.
 2. Vào cPanel › File Manager › **thư mục chính** (thấy 2 thư mục `active.mrhuynh.net` và `active_private`) › Upload › **Extract**.
    - Tự thêm: `maxai/`, `admin/maxai_api.php`, `active_private/maxai/`.
-   - Tự đè `admin/api.php`, `admin/index.html` bằng bản đã gộp sẵn Video AI + Voice AI + GCloud Hub + Max AI. Hai file này lấy từ repo `video-ai-mac-build`; mục Max AI chỉ thêm vào, không xoá gì.
+   - Tự đè `admin/api.php`, `admin/index.html` bằng bản đã gộp sẵn Video AI + Voice AI + GCloud Hub + Max Video AI. Hai file này lấy từ repo `video-ai-mac-build`; mục Max Video AI chỉ thêm vào, không xoá gì.
 3. Kiểm tra:
    - Mở `https://active.mrhuynh.net/maxai/v1/app/version` → phải trả về `{"ok":true,…}`.
-   - Trang quản trị phải có nút **⚡ Max AI**.
+   - Trang quản trị phải có nút **⚡ Max Video AI**.
 4. Lần sau chỉ cập nhật mã: Extract `MaxAI-hosting-update.zip` (không có `config.php`).
 
 ## Phát hành bản mới cho khách
 1. Tăng `version` trong `package.json` rồi đưa lên GitHub. GitHub Actions tự build Windows + macOS, mất khoảng 10–25 phút.
-2. Vào trang quản trị › ⚡ Max AI › **Cập nhật phần mềm** › chọn *Bản Windows GitHub đã build*, ghi “Có gì mới”, bấm **🚀 Phát hành**.
+2. Vào trang quản trị › ⚡ Max Video AI › **Cập nhật phần mềm** › chọn *Bản Windows GitHub đã build*, ghi “Có gì mới”, bấm **🚀 Phát hành**.
 3. App của khách:
    - Tự kiểm tra khi mở và mỗi 6 giờ.
    - Tự tải bản mới, kiểm tra SHA-256, cài rồi mở lại.

@@ -21,6 +21,8 @@ registerPage('image', (() => {
       count: 1, seedRandom: true, seed: 0, images: [], people: [],
     };
     if (App.handoff && App.handoff.page === 'image') { Object.assign(state, App.handoff.state || {}); App.handoff = null; }
+    // Ảnh đầu vào = 2 ô: [0] ảnh bắt đầu, [1] ảnh kết thúc (giống tạo video từ ảnh)
+    state.images = [state.images[0] || null, state.images[1] || null];
 
     const page = h('div', { class: 'page' });
     page.append(h('div', { class: 'page-head' },
@@ -38,19 +40,24 @@ registerPage('image', (() => {
     left.append(h('div', { class: 'card' },
       h('div', { class: 'card-head' }, h('h2', {}, 'Mô tả ảnh')),
       h('div', { class: 'card-body' }, field(null, h('div', {}, prompt, counter), 'Viết tiếng Anh cho kết quả tốt nhất. Chữ muốn hiện trong ảnh đặt trong ngoặc kép.'),
+        h('div', { class: 'row', style: { gap: '6px' } }, GPT.button('Viết lại bằng ChatGPT', async (btn) => {
+          if (!state.prompt.trim()) { toast('Hãy viết vài ý tưởng trước', { kind: 'err' }); return; }
+          const r = await GPT.run('image', { text: state.prompt }, btn);
+          if (!r || !r.prompt) return;
+          state.prompt = String(r.prompt).slice(0, 2000); prompt.value = state.prompt; counter.textContent = state.prompt.length + ' / 2000'; update();
+          toast('ChatGPT đã viết lại mô tả', { kind: 'ok' });
+        })),
         field('Gợi ý nhanh', ideas))));
 
-    els.inputs = h('div', { class: 'slots' });
+    els.inputs = h('div', { class: 'small-slots' });
     renderInputs();
-    left.append(h('details', { class: 'card', open: state.images.length > 0 },
-      h('summary', { class: 'card-head' }, icon('photo_library'), h('h2', {}, 'Ảnh đầu vào'), h('span', { class: 'hint' }, 'để sửa hoặc kết hợp — không bắt buộc'),
-        h('div', { class: 'grow' }), icon('expand_more', 'chev')),
-      h('div', { class: 'card-body' }, field(null, els.inputs, 'Tối đa 4 ảnh. Trong prompt gọi chúng là "image 1", "image 2"… Ví dụ: "Put the person in image 1 into the scene of image 2".'))));
+    left.append(h('div', { class: 'card' },
+      h('div', { class: 'card-head' }, icon('compare'), h('h2', {}, 'Ảnh đầu vào'), h('span', { class: 'hint' }, 'giống tạo video từ ảnh — không bắt buộc')),
+      h('div', { class: 'card-body' }, field(null, els.inputs, 'Ảnh bắt đầu là "image 1", ảnh kết thúc là "image 2" trong mô tả. Ví dụ: "Make image 1 look like the style of image 2".'))));
 
     els.people = h('div');
-    left.append(h('details', { class: 'card', open: state.people.length > 0 },
-      h('summary', { class: 'card-head' }, icon('groups'), h('h2', {}, 'Nhân vật trong ảnh'), h('span', { class: 'hint' }, 'giữ đúng khuôn mặt từ thẻ Nhân vật — không bắt buộc'),
-        h('div', { class: 'grow' }), icon('expand_more', 'chev')),
+    left.append(h('div', { class: 'card' },
+      h('div', { class: 'card-head' }, icon('photo_library'), h('h2', {}, 'Ảnh tham chiếu'), h('span', { class: 'hint' }, 'giữ đúng khuôn mặt, trang phục — tối đa 3')),
       h('div', { class: 'card-body' }, els.people)));
     drawPeople();
     loadPeople();
@@ -92,12 +99,10 @@ registerPage('image', (() => {
 
   function renderInputs() {
     els.inputs.innerHTML = '';
-    state.images.forEach((img, i) => els.inputs.append(mediaSlot({ title: '', value: img,
-      extra: () => h('span', { class: 'slot-kind' }, 'image ' + (i + 1)),
-      onChange: (v) => { if (!v) { state.images.splice(i, 1); renderInputs(); update(); } } })));
-    if (state.images.length < 4) {
-      els.inputs.append(mediaSlot({ title: 'Thêm ảnh', iconName: 'add_photo_alternate', onChange: (v) => { if (v) { state.images.push(v); renderInputs(); update(); } } }));
-    }
+    const slot = (i, title, desc, ic) => mediaSlot({ title, desc, iconName: ic, value: state.images[i],
+      extra: () => h('span', { class: 'slot-kind' }, i ? 'kết thúc' : 'bắt đầu'),
+      onChange: (v) => { state.images[i] = v || null; update(); } });
+    els.inputs.append(slot(0, 'Ảnh bắt đầu', 'Ảnh gốc', 'first_page'), h('span', { class: 'ms arrow' }, 'arrow_forward'), slot(1, 'Ảnh kết thúc', 'Ảnh đích', 'last_page'));
   }
 
   // Gói mô hình ảnh đã tải: { h3, qwen }
@@ -135,7 +140,7 @@ registerPage('image', (() => {
     const full = state.people.length >= 3;
     const hasFront = (c) => castImageCount(c) > 0;   // engine tự kiểm tra ảnh chính diện khi gửi
     // 1) Người đã chọn + ô thêm ảnh người
-    const picked = h('div', { class: 'slots' });
+    const picked = h('div', { class: 'small-slots ref' });
     state.people.forEach((p, i) => {
       if (p.image) {
         picked.append(mediaSlot({ title: '', value: { file: p.image, url: p.url, kind: 'image', name: p.name },
@@ -153,15 +158,15 @@ registerPage('image', (() => {
     }
     els.people.append(field(null, picked));
     // 2) Chọn từ thẻ Nhân vật
-    if (castList === null) els.people.append(h('div', { class: 'help' }, 'Đang đọc thẻ Nhân vật…'));
-    else if (castErr) els.people.append(h('div', { class: 'help', style: { color: 'var(--err)' } }, 'Không đọc được thẻ Nhân vật: ' + castErr, ' ',
+    if (castList === null) els.people.append(h('div', { class: 'help' }, 'Đang đọc Kho ảnh tham chiếu…'));
+    else if (castErr) els.people.append(h('div', { class: 'help', style: { color: 'var(--err)' } }, 'Không đọc được Kho ảnh tham chiếu: ' + castErr, ' ',
       h('a', { href: '#', onclick: (e) => { e.preventDefault(); castList = null; drawPeople(); loadPeople(); } }, 'Thử lại')));
     else if (castList.length) {
-      els.people.append(h('div', { class: 'label' }, 'Hoặc chọn từ thẻ Nhân vật'), h('div', { class: 'cast-pick' }, castList.map((c) => {
+      els.people.append(h('div', { class: 'label' }, 'Hoặc chọn từ Kho ảnh tham chiếu'), h('div', { class: 'cast-pick' }, castList.map((c) => {
         const on = state.people.some((p) => p.cast === c.id);
         if (!hasFront(c)) {
           return h('button', { class: 'cast-chip', type: 'button', style: { opacity: .55 }, title: 'Thẻ này chưa có ảnh chính diện',
-            onclick: () => toast('Thẻ "' + c.name + '" chưa có ảnh', { kind: 'err', sub: 'Vào trang Nhân vật → bấm "AI vẽ" hoặc thêm ảnh, đặt góc "Chính diện".',
+            onclick: () => toast('Thẻ "' + c.name + '" chưa có ảnh', { kind: 'err', sub: 'Vào Kho ảnh tham chiếu → bấm "AI vẽ" hoặc thêm ảnh, đặt góc "Chính diện".',
               action: { label: 'Mở Nhân vật', run: () => navigate('cast') } }) },
             castPicture(c) ? h('img', { src: mediaUrl(castPicture(c)), alt: '' }) : icon('person'), h('span', {}, c.name + ' · chưa có ảnh'));
         }
@@ -173,7 +178,7 @@ registerPage('image', (() => {
         } }, castPicture(c) ? h('img', { src: mediaUrl(castPicture(c)), alt: '' }) : icon('person'), h('span', {}, c.name));
       })));
     } else {
-      els.people.append(h('div', { class: 'help' }, 'Muốn giữ mặt nhân vật qua nhiều ảnh, video? ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('cast'); } }, 'Tạo thẻ Nhân vật'), '.'));
+      els.people.append(h('div', { class: 'help' }, 'Muốn giữ mặt nhân vật qua nhiều ảnh, video? ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('cast'); } }, 'Thêm vào Kho ảnh tham chiếu'), '.'));
     }
     els.people.append(h('div', { class: 'help' }, 'Tối đa 3 người. Trong mô tả hãy nói ai đang làm gì, ở đâu (gọi theo tên). Dùng gói "Tạo ảnh nhanh" (Qwen). Không dùng cùng lúc với "Ảnh đầu vào".'));
   }
@@ -183,17 +188,17 @@ registerPage('image', (() => {
     els.tierField.classList.toggle('hidden', state.model === 'qwen-image-2.1-turbo');
     const pk = state.packs || {};
     const noModel = pk.known && !pk.h3 && !pk.qwen;
-    const peopleNeedQwen = state.people.length && !state.images.length && pk.known && !pk.qwen;
+    const peopleNeedQwen = state.people.length && !state.images.some(Boolean) && pk.known && !pk.qwen;
     els.btn.disabled = !state.prompt.trim() || !App.connected || noModel || peopleNeedQwen;
     els.note.innerHTML = '';
     const goEngine = h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Mở Engine & mô hình');
     if (!App.connected) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('link_off'), 'Engine chưa chạy.'));
     else if (noModel) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('deployed_code'),
-      h('div', {}, 'Chưa tải mô hình tạo ảnh. Tải "Tạo ảnh nhanh" (Qwen) hoặc "Tạo ảnh chất lượng cao" (H3 Image) — chỉ cần tải 1 lần. ', goEngine)));
+      h('div', {}, 'Mô hình tạo ảnh đang được tải tự động (chỉ lần đầu). Xem tiến độ ở góc trên bên phải — xong là tạo được ngay.')));
     else if (peopleNeedQwen) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('groups'),
-      h('div', {}, 'Ghép nhân vật vào ảnh cần gói "Tạo ảnh nhanh" (Qwen Image). ', goEngine)));
+      h('div', {}, 'Ảnh tham chiếu cần mô hình "Tạo ảnh nhanh" (Qwen) — đang được tải tự động, xong là dùng được ngay.')));
     else els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('info'),
-      h('div', {}, state.images.length ? 'Sửa/kết hợp ' + state.images.length + ' ảnh theo mô tả.' : 'Tạo ' + state.count + ' ảnh mới từ mô tả.',
+      h('div', {}, state.images.some(Boolean) ? 'Tạo ảnh từ ' + state.images.filter(Boolean).length + ' ảnh đầu vào theo mô tả.' : 'Tạo ' + state.count + ' ảnh mới từ mô tả.',
         h('div', { class: 'small-text' }, 'Ảnh chạy sau video nếu GPU đang bận.'))));
   }
 
@@ -202,7 +207,7 @@ registerPage('image', (() => {
     if (state.model) spec.model = state.model;
     if (state.model !== 'qwen-image-2.1-turbo') spec.tier = state.tier;
     if (!state.seedRandom) spec.seed = (Number(state.seed) || 0) + seedOffset;
-    if (state.images.length) { spec.images = state.images.map((i) => i.file); delete spec.aspect; delete spec.tier; }
+    if (state.images.some(Boolean)) { spec.images = state.images.filter(Boolean).map((i) => i.file); delete spec.aspect; delete spec.tier; }
     else if (state.people.length) {
       // Ghép nhân vật chỉ chạy với Qwen Image; khung hình theo kích thước bội số 32, tối đa 2048.
       spec.people = state.people.map((p) => (p.cast ? { cast: p.cast } : { image: p.image, name: p.name }));

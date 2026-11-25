@@ -6,6 +6,8 @@ registerPage('library', (() => {
   let next = null;
   let query = '';
   let loading = false;
+  const selected = new Set();   // id các video đang chọn
+  let items = [];
 
   function render(root, params) {
     query = (params && params.query) || '';
@@ -17,7 +19,10 @@ registerPage('library', (() => {
       h('div', {}, h('h1', {}, 'Thư viện'), h('div', { class: 'sub' }, 'Tất cả video đã tạo, lưu ngay trên máy này.')),
       h('div', { class: 'grow' }), els.search,
       h('button', { class: 'btn btn-outline', onclick: () => { query = els.search.value.trim(); reload(); } }, icon('search'), 'Tìm'),
-      h('button', { class: 'btn btn-primary', onclick: () => navigate('video') }, icon('add'), 'Tạo video')));
+      h('button', { class: 'btn', onclick: selectAll }, icon('checklist'), 'Chọn tất cả'),
+      h('button', { class: 'btn btn-danger', onclick: deleteAll }, icon('delete_sweep'), 'Xoá toàn bộ')));
+    els.selbar = h('div');
+    page.append(els.selbar);
     els.grid = h('div', { class: 'gallery' });
     els.more = h('div', { class: 'row', style: { justifyContent: 'center', marginTop: '20px' } });
     page.append(els.grid, els.more);
@@ -27,7 +32,7 @@ registerPage('library', (() => {
 
   async function reload() {
     els.grid.innerHTML = '';
-    next = null;
+    next = null; items = []; selected.clear(); drawSelbar();
     await loadMore();
   }
 
@@ -41,7 +46,7 @@ registerPage('library', (() => {
       if (next) params.set('before', next);
       if (query) params.set('query', query);
       const data = await api('GET', '/library?' + params);
-      for (const item of data.items || []) els.grid.append(tile(item));
+      for (const item of data.items || []) { items.push(item); els.grid.append(tile(item)); }
       next = data.next || null;
       els.more.innerHTML = '';
       if (next) els.more.append(h('button', { class: 'btn btn-outline', onclick: loadMore }, 'Tải thêm'));
@@ -68,9 +73,63 @@ registerPage('library', (() => {
       media.append(video);
     });
     media.addEventListener('mouseleave', () => { if (video) { video.remove(); video = null; } });
-    return h('div', { class: 'tile', onclick: () => open(item) }, media,
+    const check = h('button', { class: 'tile-check', title: 'Chọn', onclick: (e) => { e.stopPropagation(); toggle(item.id, el); } }, icon('check', 'small'));
+    const del = h('button', { class: 'tile-del', title: 'Xoá video này', onclick: (e) => { e.stopPropagation(); remove([item.id], 'Xoá video này?'); } }, icon('delete', 'small'));
+    media.append(check, del);
+    const el = h('div', { class: 'tile' + (selected.has(item.id) ? ' sel' : ''), 'data-id': item.id, onclick: () => (selected.size ? toggle(item.id, el) : open(item)) }, media,
       h('div', { class: 'info' }, h('div', { class: 'p' }, firstSentence(item.prompt) || 'Không có prompt'),
         h('div', { class: 'm' }, fmtTime(item.created_at), item.width ? ' · ' + item.width + '×' + item.height : '')));
+    return el;
+  }
+
+  /* ---------- Chọn nhiều & xoá ---------- */
+  function toggle(id, el) {
+    if (selected.has(id)) selected.delete(id); else selected.add(id);
+    if (el) el.classList.toggle('sel', selected.has(id));
+    drawSelbar();
+  }
+  function selectAll() {
+    const all = items.length && items.every((i) => selected.has(i.id));
+    selected.clear();
+    if (!all) items.forEach((i) => selected.add(i.id));
+    els.grid.querySelectorAll('.tile').forEach((t) => t.classList.toggle('sel', selected.has(t.dataset.id)));
+    drawSelbar();
+  }
+  function drawSelbar() {
+    if (!els.selbar) return;
+    els.selbar.innerHTML = '';
+    if (!selected.size) return;
+    els.selbar.append(h('div', { class: 'selbar' }, icon('check_circle'), h('b', {}, 'Đã chọn ' + selected.size), h('div', { class: 'grow' }),
+      h('button', { class: 'btn btn-text btn-danger', onclick: () => remove([...selected], 'Xoá ' + selected.size + ' video đã chọn?') }, icon('delete'), 'Xoá ' + selected.size + ' mục đã chọn'),
+      h('button', { class: 'btn btn-text', onclick: () => { selected.clear(); els.grid.querySelectorAll('.tile.sel').forEach((t) => t.classList.remove('sel')); drawSelbar(); } }, 'Bỏ chọn')));
+  }
+  async function remove(ids, question) {
+    if (!ids.length || !confirm(question + '\nVideo sẽ bị xoá khỏi máy, không khôi phục được.')) return;
+    const r = await window.fv.deleteLibrary(ids);
+    if (!r.ok) { toastError(r.error, 'Không xoá được'); return; }
+    const { deleted, skipped } = r.data;
+    toast('Đã xoá ' + deleted + ' video', { kind: 'ok', sub: skipped.length ? skipped.length + ' video đang được dùng (dự án dựng, phim Autopilot) nên giữ lại.' : undefined });
+    reload();
+  }
+  async function deleteAll() {
+    if (!confirm('Xoá TOÀN BỘ video trong Thư viện?\nKhông khôi phục được.')) return;
+    const ids = [];
+    let before = null;
+    try {
+      for (let i = 0; i < 200; i++) {
+        const params = new URLSearchParams({ limit: '100' });
+        if (before) params.set('before', before);
+        const data = await api('GET', '/library?' + params);
+        ids.push(...(data.items || []).map((x) => x.id));
+        before = data.next || null;
+        if (!before) break;
+      }
+    } catch (e) { toastError(e, 'Không đọc được thư viện'); return; }
+    if (!ids.length) { toast('Thư viện đang trống'); return; }
+    const r = await window.fv.deleteLibrary(ids);
+    if (!r.ok) { toastError(r.error, 'Không xoá được'); return; }
+    toast('Đã xoá ' + r.data.deleted + ' video', { kind: 'ok', sub: r.data.skipped.length ? r.data.skipped.length + ' video đang được dùng nên giữ lại.' : undefined });
+    reload();
   }
 
   async function open(item) {

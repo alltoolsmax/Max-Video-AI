@@ -127,7 +127,7 @@ registerPage('edit', (() => {
     else if (!state.source) els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('info'), 'Chọn ảnh cần sửa.'));
     else if (state.mode === 'ai') {
       ok = ok && Boolean(state.prompt.trim()) && !state.noImageModel;
-      if (state.noImageModel) els.note.append(packNotice('Sửa bằng AI cần một mô hình tạo ảnh (tải 1 lần). "Chỉnh nhanh" thì không cần.'));
+      if (state.noImageModel) els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('downloading'), 'Mô hình tạo ảnh đang được tải tự động (chỉ lần đầu). "Chỉnh nhanh" dùng được ngay.'));
       else els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('auto_awesome'), 'AI vẽ lại ảnh theo mô tả, chạy trên card đồ họa của bạn.'));
     } else {
       const n = recipe().length;

@@ -19,8 +19,15 @@ contextBridge.exposeInMainWorld('fv', {
   app: () => call('app:info'),
   legal: () => call('legal:texts'),
   importMedia: (path) => call('files:import', { path }),
+  deleteLibrary: (ids) => call('library:delete', { ids }),
   quit: () => call('app:quit'),
   guides: () => call('guides'),
+  gpt: {
+    info: () => call('gpt:info'),
+    set: (key, model) => call('gpt:set', { key, model }),
+    test: (key) => call('gpt:test', { key }),
+    run: (task, input) => call('gpt:run', { task, input }),
+  },
   engine: {
     status: () => call('engine:status'),
     pickRoot: () => call('engine:pickRoot'),
@@ -32,6 +39,7 @@ contextBridge.exposeInMainWorld('fv', {
     start: () => call('engine:start'),
     stop: () => call('engine:stop'),
     autostart: (value) => call('engine:autostart', { value }),
+    auto: () => call('engine:auto'),
     packs: () => call('engine:packs'),
     pack: (id, action) => call('engine:pack', { id, action }),
   },
