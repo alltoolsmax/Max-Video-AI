@@ -40,19 +40,18 @@ Gồm các mục giống Video AI:
 
 Dữ liệu Max AI để riêng ở `active_private/maxai/data/maxai.sqlite`. Không đụng gì tới dữ liệu Video AI / Voice AI / GCloud Hub.
 
-### Cài lên hosting (làm 1 lần)
+### Cài lên hosting (chỉ 1 file zip)
 1. Bấm đúp `chuan-bi-hosting.bat` (hoặc `node tools/prepare-hosting.js`). Kết quả nằm trong `hosting\upload\`:
    - Nếu chưa có con dấu, script tạo mới `hosting\.maxai_seed.hex` (**sao lưu, không gửi ai**).
    - Script ghi khóa công khai vào `src/main/license-config.json`.
-2. cPanel › File Manager (bật *Show Hidden Files*):
-   - `MaxAI-hosting-update.zip` → tải vào **thư mục gốc của active.mrhuynh.net** › Extract (ghi đè). File này thêm `maxai/` và `admin/maxai_api.php`, đồng thời cập nhật `admin/api.php`, `admin/index.html`, `webhook.php` (đã gộp sẵn Video AI + Voice AI + GCloud Hub + Max AI).
-   - `MaxAI-private-update.zip` → tải vào thư mục **active_private/** › Extract (tạo `active_private/maxai/lib.php`).
-   - `active_private/maxai/config.php` → **chỉ lần đầu**, tải vào `active_private/maxai/` (quyền 600).
-   - Thư mục `active_private/maxai/` phải ghi được (755/775) để máy chủ tự tạo `data/` và `logs/`.
+2. cPanel › File Manager › mở **thư mục chính** (thấy 2 thư mục `active.mrhuynh.net` và `active_private`) › Upload `MaxAI-hosting.zip` › chuột phải › **Extract**. Xong:
+   - Tự thêm `active.mrhuynh.net/maxai/`, `admin/maxai_api.php`, `active_private/maxai/` (có `config.php` và con dấu).
+   - Tự đè `admin/api.php`, `admin/index.html`, `webhook.php` bằng bản đã gộp sẵn Video AI + Voice AI + GCloud Hub + Max AI.
+   - Không đụng dữ liệu hay config của Video AI / Voice AI / GCloud Hub.
 3. Kiểm tra:
    - Mở `https://active.mrhuynh.net/maxai/v1/plans` → phải thấy bảng giá.
    - Mở `https://active.mrhuynh.net/admin/` → phải có nút **⚡ Max AI**.
-4. Đưa `src/main/license-config.json` lên GitHub. Bản build mới sẽ khóa key theo máy chủ này.
+4. Lần sau chỉ cập nhật mã: làm y hệt bước 2 với `MaxAI-hosting-update.zip` (không có `config.php` nên không mất gì).
 
 > `admin/api.php`, `admin/index.html` và `webhook.php` trong gói được gộp từ bản trong repo **video-ai-mac-build**. Nếu bạn đã sửa các
 > file này trực tiếp trên hosting, hãy so sánh trước khi ghi đè. Thay đổi cho Max AI chỉ gồm:
