@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { Connection, normalizeUrl } = require('./freevideo');
 const { Device } = require('./device');
-const { Engine } = require('./engine');
+const { Engine, legalTexts } = require('./engine');
 const { Updater } = require('./updater');
 const PKG = require('../../package.json');
 
@@ -24,6 +24,7 @@ class Bridge {
     this.connection = new Connection(this.settings);
     this.allowedFiles = new Set(); // chỉ upload những file người dùng đã chọn qua hộp thoại
     this.device = new Device(path.dirname(settingsPath));
+    this.quitApp = quit || (() => {});
     this.updater = new Updater({ device: this.device, quit, onProgress: (p) => this.emit('update:progress', p) });
     this.engine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
     this.ready = null;
@@ -152,6 +153,10 @@ class Bridge {
       // ---------- bản quyền, mua key, cập nhật (máy chủ active.mrhuynh.net/maxai)
       case 'app:info':
         return { name: PKG.productName, version: PKG.version, machine: this.device.machine, platform: process.platform };
+      case 'legal:texts':
+        return legalTexts();
+      case 'app:quit':
+        return this.quitApp();
       case 'guides':
         return wrap(() => this.device.guides());
       // ---------- engine AI trong máy (giống FreeVideo)

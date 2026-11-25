@@ -20,6 +20,8 @@
     save: (route, name) => call('media:save', { route, name }),
     mediaUrl: (route) => (route ? '/__media' + route : ''),
     app: () => call('app:info'),
+    legal: () => call('legal:texts'),
+    quit: () => call('app:quit'),
     guides: () => call('guides'),
     engine: {
       status: () => call('engine:status'), pickRoot: () => call('engine:pickRoot'), useDefault: () => call('engine:useDefault'),

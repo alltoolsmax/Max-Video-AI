@@ -98,7 +98,7 @@ registerPage('engine', (() => {
     draw();
     refreshEngine();
     loadPacks();
-    unsub = [App.on('engine', (st) => { draw(); if (st && st.phase !== lastPhase) { lastPhase = st.phase; loadPacks(); } })];
+    unsub = [App.on('engine', (st) => { draw(); drawPacks(); if (st && st.phase !== lastPhase) { lastPhase = st.phase; loadPacks(); } })];
     packTimer = setInterval(() => { if (packs && packs.some((p) => p.busy)) loadPacks(); }, 3000);
   }
   function leave() { unsub.forEach((u) => u()); clearInterval(packTimer); }
@@ -110,39 +110,91 @@ registerPage('engine', (() => {
     if (r.ok) { packs = r.data; packErr = null; } else packErr = r.error.message;
     drawPacks();
   }
+  // Các phần của mô hình tạo video mà trình cài tải (theo nhóm do engine báo về)
+  const GROUP_NAMES = {
+    video: ['Mô hình video', 'VDN-H3 (MiniMax H3)'],
+    text: ['Mô hình hiểu prompt', 'Qwen3-VL 32B (MiniMax H3)'],
+    decoder: ['Bộ giải mã hình & tiếng', 'H3 decoder'],
+    sampling: ['Bộ đệm chất lượng', 'sampling caches'],
+    image: ['Mô hình tạo ảnh', 'MiniMax H3 Image'],
+  };
+  const pct = (a, b) => (b ? Math.min(100, Math.floor((a / b) * 100)) : 0);
+  const speed = (bps) => (bps ? ' · ' + fmtBytes(bps) + '/s' : '');
+  const pill = (tone, ic, text) => h('span', { class: 'pill' + (tone ? ' ' + tone : '') }, ic ? icon(ic, 'small') : null, text);
+  const bar = (label, frac) => h('div', { class: 'mini-progress' }, h('div', { class: 'lbl' }, label), progressBar(frac));
+
+  // Trạng thái 1 nhóm: đã xong / đang tải / đang kiểm tra / chờ tải
+  function groupState(g, active) {
+    if (g.state === 'ready' || (g.total && g.ready >= g.total)) return ['done', pill('ok', 'check_circle', 'Đã xong')];
+    if (g.state === 'downloading') return ['busy', bar(`Đang tải · ${fmtBytes(g.got || 0)} / ${fmtBytes(g.need || 0)}${speed(g.speed)}`, g.need ? (g.got || 0) / g.need : null)];
+    if (g.state === 'verifying') return ['busy', bar(`Đang kiểm tra · ${g.readyFiles || 0}/${g.files || 0} file`, g.files ? (g.readyFiles || 0) / g.files : null)];
+    if (!active) return ['wait', pill('warn', 'pause_circle', `Tải dở · ${pct(g.ready, g.total)}%`)];
+    return ['wait', pill('', 'schedule', 'Chờ tải' + (g.need ? ' · ' + gib(g.need) : ''))];
+  }
+
   function drawPacks() {
     if (!els.packs) return;
     els.packs.innerHTML = '';
     const st = Eng.st || {};
     const running = st.phase === 'running';
-    const body = h('div', { class: 'table-wrap' });
-    const rows = (packs || []).map((p) => {
-      let state, action = null;
-      if (p.ready) state = h('span', { class: 'pill ok' }, icon('check_circle', 'small'), 'Đã tải');
+    const installing = st.phase === 'installing';
+    const groups = st.groups || [];
+    const count = { done: 0, busy: 0, wait: 0, none: 0 };
+    const rows = [];
+    for (const p of (packs || [])) {
+      let state, action = null, kind = 'none', subRows = [];
+      if (p.core && !p.ready && groups.length) {
+        // Mô hình tạo video đang (hoặc đã từng) tải trong lúc cài: chia nhỏ từng phần
+        const total = groups.reduce((n, g) => n + (g.total || 0), 0), ready = groups.reduce((n, g) => n + (g.ready || 0), 0);
+        const states = groups.map((g) => groupState(g, installing));
+        kind = installing ? 'busy' : 'wait';
+        state = installing ? bar(`Đang tải · đã có ${fmtBytes(ready)} / ${fmtBytes(total)} (${pct(ready, total)}%)`, total ? ready / total : null)
+          : pill('warn', 'pause_circle', `Tải dở · ${pct(ready, total)}%`);
+        action = installing ? null : h('button', { class: 'btn btn-text', onclick: () => document.querySelector('#content').scrollTo(0, 0) }, icon('arrow_upward'), 'Cài tiếp ở trên');
+        subRows = groups.map((g, i) => {
+          const [nm, md] = GROUP_NAMES[g.id] || [g.id, ''];
+          const cur = st.downloading && g.state === 'downloading' ? st.downloading.file : '';
+          return h('tr', { class: 'sub-row' }, h('td', {}, h('span', { class: 'tree' }, '└'), nm, h('div', { class: 'small-text muted' }, md)),
+            h('td', { class: 'small-text muted' }, cur || (g.total ? fmtBytes(g.total) : '')), h('td', {}, states[i][1]), h('td'));
+        });
+      } else if (p.ready) { kind = 'done'; state = pill('ok', 'check_circle', 'Đã tải'); }
       else if (p.busy) {
-        const frac = p.progress && p.progress.total ? p.progress.done / p.progress.total : null;
-        state = h('div', { class: 'mini-progress' }, h('div', { class: 'lbl' }, 'Đang tải' + (p.progress && p.progress.total ? ` · ${fmtBytes(p.progress.done)} / ${fmtBytes(p.progress.total)}` : '…')), progressBar(frac));
+        kind = 'busy';
+        const pr = p.progress;
+        state = bar('Đang tải' + (pr && pr.total ? ` · ${fmtBytes(pr.done)} / ${fmtBytes(pr.total)} (${pct(pr.done, pr.total)}%)` : '…'), pr && pr.total ? pr.done / pr.total : null);
         action = p.core ? null : h('button', { class: 'btn btn-text btn-danger', onclick: () => packDo(p, 'cancel') }, icon('pause_circle'), 'Dừng');
       } else if (p.core) {
-        state = h('span', { class: 'pill bad' }, 'Chưa cài');
-        action = h('button', { class: 'btn btn-text', onclick: () => window.scrollTo(0, 0) }, icon('arrow_upward'), 'Cài ở trên');
-      } else if (!running) state = h('span', { class: 'pill' }, 'Bật engine để tải');
-      else if (!p.available) state = h('span', { class: 'pill' }, p.error || 'Chưa hỗ trợ trên máy này');
+        if (installing) { kind = 'busy'; state = bar('Đang chuẩn bị tải…', null); }
+        else {
+          state = pill('bad', null, st.phase === 'failed' || st.phase === 'cancelled' ? 'Chưa tải xong' : 'Chưa tải');
+          action = h('button', { class: 'btn btn-text', onclick: () => document.querySelector('#content').scrollTo(0, 0) }, icon('arrow_upward'), 'Cài ở trên');
+        }
+      } else if (installing || !st.installed) { kind = 'wait'; state = pill('', 'schedule', 'Chờ — tải sau khi cài xong engine'); }
+      else if (!running) {
+        kind = 'wait'; state = pill('', 'schedule', 'Chưa tải · cần bật engine');
+        action = st.phase === 'starting' ? null : h('button', { class: 'btn btn-text', onclick: engineStart }, icon('play_circle'), 'Bật engine');
+      } else if (!p.available) state = pill('', null, p.error || 'Chưa hỗ trợ trên máy này');
       else {
-        state = h('span', { class: 'pill' }, p.bytes ? 'Chưa tải · ' + gib(p.bytes) : 'Chưa tải');
+        state = pill('', 'download', p.bytes ? 'Chưa tải · ' + gib(p.bytes) : 'Chưa tải');
         action = h('button', { class: 'btn btn-primary', onclick: () => packDo(p, 'install') }, icon('download'), 'Tải');
       }
-      return h('tr', {}, h('td', {}, h('b', {}, p.name), h('div', { class: 'small-text muted' }, p.model)),
-        h('td', { class: 'small-text muted' }, p.use), h('td', {}, state, p.error && !p.ready && p.available ? h('div', { class: 'small-text', style: { color: 'var(--err)' } }, viEngineError(p.error)) : null),
-        h('td', { style: { textAlign: 'right' } }, action));
-    });
-    body.append(h('table', { class: 'data' }, h('thead', {}, h('tr', {}, ['Mô hình', 'Dùng cho', 'Trạng thái', ''].map((t) => h('th', {}, t)))), h('tbody', {}, rows)));
+      count[kind]++;
+      const tag = p.id === 'image-qwen' ? h('span', { class: 'pill warn', style: { marginLeft: '6px', fontSize: '11px' }, title: 'Qwen Research License: chỉ dùng phi thương mại' }, 'Phi thương mại') : null;
+      rows.push(h('tr', { class: kind === 'busy' ? 'row-busy' : '' }, h('td', {}, h('b', {}, p.name), tag, h('div', { class: 'small-text muted' }, p.model)),
+        h('td', { class: 'small-text muted' }, p.use), h('td', {}, state, p.error && !p.ready && p.available && running ? h('div', { class: 'small-text', style: { color: 'var(--err)' } }, viEngineError(p.error)) : null),
+        h('td', { style: { textAlign: 'right' } }, action)), ...subRows);
+    }
+    const summary = h('div', { class: 'row', style: { gap: '6px' } },
+      pill('ok', 'check_circle', `${count.done} đã tải`), count.busy ? pill('info', 'downloading', `${count.busy} đang tải`) : null,
+      pill('', 'schedule', `${count.wait + count.none} chưa tải`));
+    const body = h('div', { class: 'table-wrap' }, h('table', { class: 'data packs-table' },
+      h('thead', {}, h('tr', {}, ['Mô hình', 'Dùng cho', 'Trạng thái', ''].map((t) => h('th', {}, t)))), h('tbody', {}, rows)));
     els.packs.append(h('div', { class: 'card' },
-      h('div', { class: 'card-head' }, icon('deployed_code'), h('h2', {}, 'Mô hình AI trên máy'), h('span', { class: 'hint' }, 'tải riêng từng gói, chỉ khi cần'),
+      h('div', { class: 'card-head' }, icon('deployed_code'), h('h2', {}, 'Mô hình AI trên máy'), packs ? summary : null,
         h('div', { class: 'grow' }), h('button', { class: 'btn btn-text', onclick: loadPacks }, icon('refresh'), 'Làm mới')),
       packErr ? h('div', { class: 'card-body' }, h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('error'), packErr)) : null,
       packs ? body : h('div', { class: 'card-body muted' }, 'Đang đọc…'),
-      h('div', { class: 'card-body help', style: { marginTop: 0 } }, 'Mô hình tạo video được tải khi cài engine. Các mô hình khác tải về máy khi bạn bấm Tải; tải lúc engine đang tạo video sẽ tự nhường GPU. Mô hình theo giấy phép của từng nhà phát hành (MiniMax H3 Community License, …).')));
+      h('div', { class: 'card-body help', style: { marginTop: 0 } }, 'Mô hình tạo video tải khi cài engine (từng phần hiện ngay bên dưới khi đang tải). Các mô hình khác tải sau, khi engine đang chạy, bấm Tải gói nào thì tải gói đó. Mô hình theo giấy phép của từng nhà phát hành — xem ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); openTerms(); } }, 'Giấy phép & điều khoản'), '.')));
   }
   async function packDo(p, action) {
     const r = await window.fv.engine.pack(p.id, action);

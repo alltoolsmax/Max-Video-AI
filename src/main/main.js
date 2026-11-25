@@ -58,7 +58,7 @@ app.whenReady().then(() => {
     settingsPath: path.join(app.getPath('userData'), 'settings.json'),
     dialogs: {
       async pickFolder(title) {
-        const r = await dialog.showOpenDialog(win, { title: title || 'Chọn thư mục cài đặt FreeVideo', properties: ['openDirectory', 'createDirectory'] });
+        const r = await dialog.showOpenDialog(win, { title: title || 'Chọn thư mục cài Max AI Engine', properties: ['openDirectory', 'createDirectory'] });
         return r.canceled ? null : r.filePaths[0];
       },
       async pickFiles(filters, multiple) {

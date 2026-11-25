@@ -50,7 +50,7 @@ registerPage('image', (() => {
     const modelSelect = h('select', { class: 'select', onchange: (e) => { state.model = e.target.value; setPref('imageModel', state.model); update(); } },
       h('option', { value: '' }, 'Tự động (model đã cài)'),
       h('option', { value: 'minimax-h3-image' }, 'MiniMax H3 Image — chất lượng cao, tới 16 MP'),
-      h('option', { value: 'qwen-image-2.1-turbo' }, 'Qwen Image 2.1 Turbo — nhanh'));
+      h('option', { value: 'qwen-image-2.1-turbo' }, 'Qwen Image 2.1 Turbo — nhanh (chỉ dùng phi thương mại)'));
     modelSelect.value = state.model;
     els.tier = segmented([{ value: 'standard', label: 'Tiêu chuẩn', desc: '~4 MP' }, { value: 'high', label: 'Cao', desc: '~16 MP, lâu hơn' }],
       state.tier, (v) => { state.tier = v; setPref('imageTier', v); });
@@ -66,7 +66,7 @@ registerPage('image', (() => {
 
     els.btn = h('button', { class: 'btn btn-primary btn-hero', onclick: submit }, icon('image'), 'Tạo ảnh', h('span', { class: 'kbd' }, 'Ctrl ↵'));
     els.note = h('div');
-    right.append(h('div', { class: 'card', style: { marginBottom: 0 } }, h('div', { class: 'card-body' }, els.note, h('div', { class: 'mt' }, els.btn))));
+    right.append(h('div', { class: 'card', style: { marginBottom: 0 } }, h('div', { class: 'card-body' }, els.note, h('div', { class: 'mt' }, els.btn), aiLabelNote())));
     els.results = h('div');
     right.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Ảnh gần đây')), h('div', { class: 'card-body' }, els.results)));
 

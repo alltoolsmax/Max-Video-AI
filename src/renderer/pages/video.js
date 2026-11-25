@@ -144,7 +144,7 @@ registerPage('video', (() => {
     els.generateBtn = h('button', { class: 'btn btn-primary btn-hero', onclick: submit }, icon('movie'), 'Tạo video', h('span', { class: 'kbd' }, 'Ctrl ↵'));
     right.append(h('div', { class: 'card', style: { marginBottom: 0 } },
       h('div', { class: 'card-head' }, h('h2', {}, 'Tóm tắt')), els.summary,
-      h('div', { class: 'card-foot', style: { display: 'block' } }, els.generateBtn)));
+      h('div', { class: 'card-foot', style: { display: 'block' } }, els.generateBtn, aiLabelNote())));
     els.results = h('div');
     right.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Kết quả gần đây'), h('div', { class: 'grow' }),
       h('button', { class: 'btn btn-text', onclick: () => navigate('library') }, 'Thư viện')), h('div', { class: 'card-body' }, els.results)));

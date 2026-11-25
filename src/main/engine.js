@@ -98,7 +98,7 @@ class Engine {
       machine: machine ? { gpu: machine.gpu_name || (machine.hardware && machine.hardware.gpu_name) || '', backend: machine.device_backend || 'cuda',
         vram_gib: machine.vram_gib, ram_gib: machine.ram_gib, format: machine.prepared_format || '' } : null,
       phase: this.state.phase, error: this.state.error || null, task: this.task ? this.task.kind : null,
-      progress: this.progress, url: this.url, autostart: this.cfg.autostart !== false,
+      progress: this.progress, groups: this.groups || null, downloading: this.task ? this.downloading || null : null, url: this.url, autostart: this.cfg.autostart !== false,
       log: this.log.slice(-60), plan: this.lastPlan,
     };
   }
@@ -241,6 +241,7 @@ class Engine {
         throw new Error(failure || `Cài đặt dừng (mã ${code}). Bấm "Cài tiếp" để chạy lại — file đã tải được giữ lại.`);
       }
       this.progress = null;
+      this.groups = null;
       cleanRetained(path.join(this.root, 'models'));
       this.setPhase('installed');
       return this.status();
@@ -266,6 +267,12 @@ class Engine {
         this.progress = { ...(this.progress || {}), tasks: Object.values(this.tasks).slice(-8) };
       } else if (k === 'failure') { this.failure = brand(ev.error); this.addLog('Lỗi: ' + ev.error); }
       else if (k === 'models') this.progress = { ...(this.progress || {}), models: ev.groups };
+    } else if (ev.event === 'model_groups' && Array.isArray(ev.groups)) {
+      // Trạng thái từng nhóm mô hình (video, văn bản, giải mã, bộ đệm…) — giữ lại cả khi cài dừng giữa chừng.
+      this.groups = ev.groups.map((g) => ({ id: g.id, state: g.state, total: g.total_bytes, ready: g.ready_bytes,
+        need: g.download_bytes, got: g.downloaded_bytes, speed: g.bytes_per_second, files: g.files, readyFiles: g.ready_files }));
+    } else if (ev.event === 'download_model') {
+      this.downloading = { file: String(ev.file || '').split(/[\\/]/).pop(), name: ev.name, bytes: ev.bytes };
     } else if (ev.event === 'local_model_progress') {
       this.progress = { ...(this.progress || {}), current: { label: 'Mô hình: ' + (ev.name || ev.file || ''), detail: ev.phase, done: ev.done_bytes, total: ev.total_bytes, unit: 'bytes' } };
     }
@@ -519,4 +526,16 @@ function cleanRetained(dir, depth = 0) {
   }
 }
 
-module.exports = { Engine, ENGINE, summarizePlan };
+// Văn bản giấy phép mô hình đi kèm engine (đưa cho người dùng đọc trong app).
+function legalTexts() {
+  const dir = bundledEngine();
+  const read = (rel) => { try { return fs.readFileSync(path.join(dir, rel), 'utf8'); } catch { return ''; } };
+  return {
+    minimax: read('freevideo_engine/licenses/MiniMax-H3-Community-License-Agreement.txt'),
+    notice: read('NOTICE'),
+    thirdParty: read('THIRD_PARTY_NOTICES.md'),
+    apache: read('LICENSE'),
+  };
+}
+
+module.exports = { Engine, ENGINE, summarizePlan, legalTexts };

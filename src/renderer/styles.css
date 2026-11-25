@@ -365,3 +365,24 @@ table.data .thumb { width: 72px; height: 42px; object-fit: cover; border-radius:
 .pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: rgba(127, 140, 180, 0.16); font-size: 12px; font-weight: 600; color: var(--muted); }
 .pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.bad { background: var(--err-soft); color: var(--err); }
 .pro-lock { display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-weight: 800; color: #fff; background: var(--grad); border-radius: 999px; padding: 1px 7px; margin-left: 6px; }
+
+/* Menu: Engine & mô hình nằm cuối danh sách */
+.nav-bottom { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+/* Giấy phép */
+.powered-by { margin-top: 2px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; opacity: .8; }
+.powered-by b { color: var(--text); font-weight: 600; } .powered-by:hover { opacity: 1; }
+body.nav-collapsed .powered-by { display: none; }
+.pill.warn { background: var(--warn-soft); color: var(--warn); } .pill.info { background: var(--accent-soft); color: var(--accent2, #8b9eff); }
+.legal-body { max-height: 46vh; overflow: auto; padding-right: 6px; line-height: 1.55; }
+.legal-body h4 { margin: 14px 0 6px; font-size: 14px; } .legal-body h4:first-child { margin-top: 0; }
+.legal-body p { margin: 4px 0; color: var(--text); }
+.legal-list { margin: 4px 0 6px 18px; padding: 0; columns: 2; column-gap: 26px; font-size: 13px; } .legal-list li { margin: 0 0 5px; break-inside: avoid; }
+.legal-table td, .legal-table th { font-size: 12.5px; vertical-align: top; }
+.legal-checks { display: grid; gap: 8px; margin: 10px 0 4px; padding: 12px; border-radius: 12px; background: var(--accent-soft); }
+.check-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 13.5px; } .check-row input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; }
+.legal-text { white-space: pre-wrap; max-height: 60vh; overflow: auto; font-size: 12px; line-height: 1.5; background: var(--bg2); padding: 14px; border-radius: 10px; }
+.packs-table .sub-row td { padding-top: 6px; padding-bottom: 6px; background: rgba(91,140,255,.04); font-size: 13px; }
+.packs-table .sub-row .tree { color: var(--muted); margin: 0 8px 0 6px; }
+.packs-table tr.row-busy td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+@media (max-width: 1100px) { .legal-list { columns: 1; } }
+.packs-table .mini-progress { width: 300px; max-width: 100%; } .packs-table .mini-progress .lbl { white-space: normal; overflow: visible; text-overflow: clip; }

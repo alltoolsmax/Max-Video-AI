@@ -103,8 +103,9 @@ async function openAbout() {
       h('dt', {}, 'Giấy phép'), h('dd', {}, 'Miễn phí · không giới hạn'),
       h('dt', {}, 'Mã máy'), h('dd', {}, h('code', {}, info.machine)),
       h('dt', {}, 'Engine'), h('dd', {}, 'Max AI Engine · MiniMax H3 / VDN-H3')),
-    h('div', { class: 'help', style: { textAlign: 'center' } }, `© ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Trọng số model theo MiniMax H3 Community License.`),
+    h('div', { class: 'help', style: { textAlign: 'center' } }, `© ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Powered by MiniMax H3 — mô hình dùng theo giấy phép của từng nhà phát hành.`),
     h('div', { class: 'foot', style: { justifyContent: 'center' } },
+      h('button', { class: 'btn', onclick: () => openTerms() }, icon('gavel'), 'Giấy phép & điều khoản'),
       h('button', { class: 'btn', onclick: () => { closeModal(); navigate('engine'); } }, icon('memory'), 'Engine & mô hình'),
       h('button', { class: 'btn btn-primary', onclick: () => { closeModal(); checkUpdate(); } }, icon('system_update'), 'Kiểm tra cập nhật'))]);
 }

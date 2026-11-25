@@ -74,6 +74,8 @@
   window.fv.on('update:available', (r) => { $('#updatePill').classList.remove('hidden'); if (r.mandatory) checkUpdate({ info: r }); });
 
   startTicker();
+  $('#poweredBtn').onclick = () => openTerms();
+  await ensureTermsAccepted();
   await refreshEngine();
   // Lần đầu (chưa cài engine) → mở trang cài engine.
   navigate(App.config.hasToken || (Eng.st && Eng.st.installed) ? 'video' : 'engine');
