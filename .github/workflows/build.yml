@@ -88,6 +88,34 @@ jobs:
           if [ "${{ matrix.name }}" = "win" ]; then D=dist/downloads; else D=dist/downloads-mac; fi
           gh release upload "$TAG" $D/* --clobber
 
+  # Chế độ nhẹ: kiểm tra workflow Wan 2.2 5B với ComfyUI thật (CPU, mô hình rỗng — chỉ kiểm tra node & tham số)
+  lite-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Cài ComfyUI (bản cố định) + PyTorch CPU
+        run: |
+          C=$(node -p "require('./src/main/lite').COMFY.commit")
+          curl -sL "https://github.com/comfy-org/ComfyUI/archive/$C.zip" -o comfy.zip
+          unzip -q comfy.zip && mv ComfyUI-$C comfy
+          pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -q -r comfy/requirements.txt
+          mkdir -p comfy/models/diffusion_models comfy/models/text_encoders comfy/models/vae comfy/input/maxai
+          touch comfy/models/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors comfy/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors comfy/models/vae/wan2.2_vae.safetensors
+          python -c "from PIL import Image; Image.new('RGB',(64,64),'red').save('comfy/input/maxai/start.png')"
+      - name: Gửi workflow chế độ nhẹ
+        run: |
+          (cd comfy && python main.py --cpu --listen 127.0.0.1 --port 8188 > ../comfy.log 2>&1 &)
+          for i in $(seq 1 90); do curl -sf http://127.0.0.1:8188/system_stats >/dev/null && break; sleep 2; done
+          node tools/lite-check.js http://127.0.0.1:8188 || (tail -50 comfy.log; exit 1)
+
   publish:
     needs: build
     runs-on: ubuntu-latest

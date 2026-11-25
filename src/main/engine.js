@@ -263,13 +263,26 @@ class Engine {
     this.setPhase('installing');
     try {
       await this.ensureSource();
-      const c = await this.setupCommand(['--yes', '--accept-model-license', '--plain', ...this.installArgs(options)]);
-      const code = await run(c.cmd, c.args, { env: c.env, cwd: this.root, task: this.task, allowFail: true, codeOnly: true,
-        onLine: (line) => this.onSetupLine(line) });
-      if (this.task.cancelled) { this.progress = null; this.setPhase('cancelled'); return this.status(); }
-      if (code !== 0 || !this.machine()) {
+      // Cài; bước nào lỗi thì tự chẩn đoán từ log, tự sửa (VC++ runtime, môi trường Python hỏng…) rồi cài lại — tối đa 3 lần sửa
+      const tried = new Set();
+      for (let attempt = 0; ; attempt++) {
+        this.failure = null;
+        const c = await this.setupCommand(['--yes', '--accept-model-license', '--plain', ...this.installArgs(options)]);
+        const code = await run(c.cmd, c.args, { env: c.env, cwd: this.root, task: this.task, allowFail: true, codeOnly: true,
+          onLine: (line) => this.onSetupLine(line) });
+        if (this.task.cancelled) { this.progress = null; this.setPhase('cancelled'); return this.status(); }
+        if (code === 0 && this.machine()) break;
         const failure = this.failure || lastLines(this.log);
-        throw new Error(failure || `Cài đặt dừng (mã ${code}). Bấm "Cài tiếp" để chạy lại — file đã tải được giữ lại.`);
+        const diag = require('./autofix').diagnose(failure, this.root, this.log);
+        this.addLog('[Tự sửa] Chẩn đoán: ' + diag.kind + (diag.step ? ' (bước ' + diag.step + ')' : ''));
+        const fix = diag.fixes.find((f) => !tried.has(f));
+        if (!fix || attempt >= 3) {
+          throw new Error(diag.message || failure || `Cài đặt dừng (mã ${code}). Bấm "Cài tiếp" để chạy lại — file đã tải được giữ lại.`);
+        }
+        tried.add(fix);
+        await require('./autofix').apply(fix, { root: this.root, say: (label) => { this.progress = { label, current: null }; this.emit('engine:status', this.status()); },
+          log: (t) => this.addLog('[Tự sửa] ' + t), task: this.task });
+        if (this.task.cancelled) { this.progress = null; this.setPhase('cancelled'); return this.status(); }
       }
       this.progress = null;
       this.groups = null;

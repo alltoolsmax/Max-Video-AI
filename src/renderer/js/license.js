@@ -68,7 +68,7 @@ async function openLicense({ required = false, reason = '' } = {}) {
       machineBox(v)));
   } else {
     body.append(h('div', { class: 'lic-hero' }, h('img', { src: '../../assets/icon.png', alt: '' }),
-      h('div', {}, h('b', {}, 'Chọn gói để bắt đầu'), h('small', {}, 'Quét QR ngân hàng — tự kích hoạt ngay khi nhận tiền. Engine & mô hình AI vẫn được chuẩn bị ngầm.')),
+      h('div', { style: { flex: 1, minWidth: 0 } }, h('b', {}, 'Chọn gói để bắt đầu'), hardwareBox({ compact: true })),
       machineBox(v)));
   }
 
@@ -128,6 +128,8 @@ function buyViaZalo(plan, contact) {
 
 async function buyQR(plan) {
   const required = !licensed();
+  const hw = await loadHardware();
+  if (hw && hw.tier === 'none' && !window.confirm('Máy này không đủ cấu hình để tạo video:\n' + (hw.reasons || []).join('\n') + '\n\nBạn vẫn muốn mua key (ví dụ để dùng trên máy khác)?')) return;
   const r = await window.fv.license.order(plan.code);
   if (!r.ok) { toast(r.error.message, { kind: 'err' }); return; }
   const o = r.data;

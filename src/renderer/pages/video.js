@@ -74,6 +74,8 @@ registerPage('video', (() => {
 
     const left = h('div');
     const right = h('div', { class: 'sticky-col' });
+    els.liteBanner = h('div');
+    page.append(els.liteBanner);
     page.append(h('div', { class: 'layout-2' }, left, right));
 
     /* Prompt: 1 khung, mỗi dòng 1 video */
@@ -122,7 +124,7 @@ registerPage('video', (() => {
     right.append(h('div', { class: 'card', style: { marginBottom: 0 } },
       h('div', { class: 'card-head' }, h('h2', {}, 'Tóm tắt')), els.summary,
       h('div', { class: 'card-foot', style: { display: 'block' } }, els.previewBtn,
-        h('div', { class: 'help', style: { margin: '4px 0 10px' } }, 'Bản nhanh, nửa độ phân giải — ưng rồi bấm "Hoàn thiện" ở kết quả để ra bản đẹp.'),
+        els.previewHelp = h('div', { class: 'help', style: { margin: '4px 0 10px' } }, 'Bản nhanh, nửa độ phân giải — ưng rồi bấm "Hoàn thiện" ở kết quả để ra bản đẹp.'),
         els.generateBtn, aiLabelNote())));
     els.results = h('div');
     right.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Kết quả gần đây'), h('div', { class: 'grow' }),
@@ -132,11 +134,12 @@ registerPage('video', (() => {
     renderContinue();
     renderSummary();
     showRecent(App.jobs);
+    applyLite();
     schedulePlan(10);
 
     unsub = [
       App.on('jobs', showRecent),
-      App.on('caps', () => { if (App.caps.limits) els.duration.setMax(App.caps.limits.seconds[1]); schedulePlan(); }),
+      App.on('caps', () => { if (App.caps.limits) els.duration.setMax(App.caps.limits.seconds[1]); applyLite(); schedulePlan(); }),
       App.on('connection', () => schedulePlan()),
     ];
     document.addEventListener('keydown', onKey);
@@ -171,6 +174,18 @@ registerPage('video', (() => {
       field('Gợi ý nhanh', ideas));
     countLines();
     setTimeout(() => ta.focus(), 0);
+  }
+  // Chế độ nhẹ: video tối đa 5 giây, không có bản xem trước / hoàn thiện
+  function applyLite() {
+    const lite = Boolean(App.caps && App.caps.lite);
+    if (els.liteBanner) {
+      els.liteBanner.innerHTML = '';
+      if (lite) els.liteBanner.append(h('div', { class: 'lite-banner' }, icon('speed', 'fill'), h('div', {}, h('b', {}, 'Chế độ nhẹ (Wan 2.2 5B): '),
+        'video tối đa 5 giây, chưa có âm thanh, chỉ dùng ảnh mở đầu. Máy có card RTX 30 trở lên thì chuyển sang bản đầy đủ ở ',
+        h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Engine & mô hình'), '.')));
+    }
+    for (const el of [els.previewBtn, els.previewHelp]) if (el) el.style.display = lite ? 'none' : '';
+    if (lite && Number(state.seconds) > 5) { state.seconds = 5; if (els.duration && els.duration.setValue) els.duration.setValue(5); }
   }
   function countLines() {
     const n = promptLines().length;

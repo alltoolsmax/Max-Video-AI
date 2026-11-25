@@ -634,3 +634,24 @@ body.nav-collapsed .lic-chip span:not(.ms) { display: none; }
 .ctx-item.danger, .ctx-item.danger .ms { color: var(--err); }
 .ctx-item.danger:hover { background: var(--err-soft); }
 .ctx-sep { height: 1px; background: var(--border); margin: 5px 4px; }
+
+/* Kiểm tra máy */
+.hw-box { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); }
+.hw-box > .ms { font-size: 22px; margin-top: 1px; }
+.hw-box.ok > .ms { color: var(--ok); } .hw-box.warn > .ms { color: var(--warn); } .hw-box.err > .ms { color: var(--err); }
+.hw-box.ok { border-color: rgba(34, 197, 94, .35); } .hw-box.warn { border-color: rgba(245, 158, 11, .4); } .hw-box.err { border-color: rgba(239, 68, 68, .45); background: var(--err-soft); }
+.hw-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hw-text b { font-size: 14px; } .hw-text small { color: var(--muted); font-size: 12px; }
+.hw-desc { font-size: 12.5px; margin-top: 4px; } .hw-reason { font-size: 12px; color: var(--muted); }
+.hw-box.compact { padding: 6px 0 0; border: 0; background: transparent; gap: 6px; align-items: center; }
+.hw-box.compact > .ms { font-size: 18px; margin: 0; }
+.hw-box.compact .hw-text { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.hw-box.compact .hw-text b { font-size: 12.5px; }
+.hw-box.compact.ok .hw-text b { color: var(--ok); } .hw-box.compact.warn .hw-text b { color: var(--warn); } .hw-box.compact.err .hw-text b { color: var(--err); }
+.hw-box.compact .hw-reason { flex-basis: 100%; }
+.mode-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.mode-opt { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--panel); display: flex; flex-direction: column; gap: 6px; }
+.mode-opt.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.mode-opt b { display: flex; align-items: center; gap: 8px; } .mode-opt small { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.lite-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .35); margin-bottom: 14px; font-size: 13px; }
+.lite-banner .ms { color: var(--warn); }

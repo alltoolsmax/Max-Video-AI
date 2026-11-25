@@ -52,7 +52,9 @@ contextBridge.exposeInMainWorld('fv', {
     auto: () => call('engine:auto'),
     packs: () => call('engine:packs'),
     pack: (id, action) => call('engine:pack', { id, action }),
+    mode: (mode) => call('engine:mode', { mode }),
   },
+  hardware: () => call('hw:check'),
   update: {
     check: () => call('update:check'),
     download: () => call('update:download'),

@@ -6,6 +6,8 @@ const path = require('path');
 const { Connection, normalizeUrl } = require('./freevideo');
 const { Device } = require('./device');
 const { Engine, legalTexts } = require('./engine');
+const { LiteEngine } = require('./lite');
+const hardware = require('./hardware');
 const { Updater } = require('./updater');
 const { Gpt, SYSTEM: AI_SYSTEM, userText: aiUserText } = require('./gpt');
 const { License } = require('./license');
@@ -31,9 +33,40 @@ class Bridge {
     this.device.tier = () => (this.license.view().ok ? 'pro' : 'free');
     this.quitApp = quit || (() => {});
     this.updater = new Updater({ device: this.device, quit, onProgress: (p) => this.emit('update:progress', p) });
-    this.engine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
+    this.fullEngine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
+    // Chế độ nhẹ (Wan 2.2 5B qua ComfyUI) cho máy card NVIDIA yếu — chọn tự động theo kết quả kiểm tra máy
+    this.liteEngine = new LiteEngine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p), hardware: () => hardware.check() });
     this.gpt = new Gpt({ settings: this.settings, save: () => this.save() });
     this.ready = null;
+  }
+
+  get mode() { return (this.settings.engine && this.settings.engine.mode) || 'full'; }
+  get engine() { return this.mode === 'lite' ? this.liteEngine : this.fullEngine; }
+
+  // Chọn chế độ theo máy (lần đầu): đủ mạnh → bản đầy đủ, card yếu → chế độ nhẹ, không đủ → không tự cài gì
+  async chooseMode() {
+    const cfg = (this.settings.engine ||= {});
+    if (cfg.mode) return cfg.mode;
+    const hw = await hardware.check();
+    // Máy đã cài bản đầy đủ từ trước thì giữ nguyên
+    if (this.fullEngine.root && this.fullEngine.machine()) cfg.mode = 'full';
+    else if (hw.tier === 'lite') cfg.mode = 'lite';
+    else if (hw.tier === 'full' || hw.tier === 'unknown') cfg.mode = 'full';
+    else return 'none';
+    this.save();
+    return cfg.mode;
+  }
+
+  async setMode(mode) {
+    if (!['full', 'lite'].includes(mode)) throw new Error('Chế độ không hợp lệ');
+    if (mode === this.mode && this.settings.engine && this.settings.engine.mode) return this.engine.status();
+    const old = this.engine;
+    try { old.cancel(); } catch { /* bỏ qua */ }
+    try { await old.stop(); } catch { /* bỏ qua */ }
+    (this.settings.engine ||= {}).mode = mode;
+    this.save();
+    this.emit('engine:status', this.engine.status());
+    return this.engine.status();
   }
 
   // Khi engine trong máy mở xong: trỏ kết nối tới đúng engine đó (token ở <thư mục cài>/agent/token).
@@ -52,7 +85,7 @@ class Bridge {
   start() {
     if (this.ready) return this.ready;
     this.ready = Promise.resolve().then(() => {
-      this.engine.adoptExisting();   // cài lại app → tự nhận thư mục engine & mô hình cũ
+      this.fullEngine.adoptExisting();   // cài lại app → tự nhận thư mục engine & mô hình cũ
       // Bản quyền: kiểm tra lúc mở + mỗi 6 giờ (máy chủ cho dùng offline tối đa 3 ngày)
       const lic = async () => { try { await this.license.startup(); } catch { /* giữ trạng thái cũ */ } this.emit('license:changed', this.license.view()); };
       lic();
@@ -72,8 +105,10 @@ class Bridge {
 
   // Đóng Max Video AI: tắt engine và dừng việc cài đang chạy (chạy lại sẽ tải tiếp).
   async shutdown() {
-    try { this.engine.cancel(); } catch { /* bỏ qua */ }
-    try { await this.engine.stop(); } catch { /* bỏ qua */ }
+    for (const e of [this.fullEngine, this.liteEngine]) {
+      try { e.cancel(); } catch { /* bỏ qua */ }
+      try { await e.stop(); } catch { /* bỏ qua */ }
+    }
   }
 
   load() {
@@ -276,8 +311,19 @@ class Bridge {
       case 'gpt:run':
         if (!this.license.view().ok) return { ok: false, error: { code: 'no_license', message: 'Cần kích hoạt bản quyền để dùng chức năng này.' } };
         return wrap(() => this.gpt.run(String(args.task || ''), args.input || {}));
-      case 'engine:auto':
+      case 'engine:auto': {
+        const mode = await this.chooseMode();
+        if (mode === 'none') {
+          const hw = await hardware.check();
+          return { ...this.engine.status(), unsupported: true, hardware: hw,
+            auto: { stage: 'unsupported', error: (hw.reasons || []).join(' ') || 'Máy này không đủ cấu hình để tạo video.' } };
+        }
         return this.engine.auto();
+      }
+      case 'hw:check':
+        return wrap(async () => ({ ...(await hardware.check()), mode: this.mode, modeChosen: Boolean(this.settings.engine && this.settings.engine.mode) }));
+      case 'engine:mode':
+        return wrap(() => this.setMode(String(args.mode || '')));
       case 'engine:packs':
         return wrap(() => this.engine.packs());
       case 'engine:pack':

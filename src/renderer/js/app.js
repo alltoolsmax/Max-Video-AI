@@ -125,6 +125,11 @@ function autoEngine() {
     if (done || !st) return;
     const auto = st.auto || {};
     if (st.phase === 'running') { finish(); return; }
+    if (auto.stage === 'unsupported') {
+      Splash.progress('Máy này không đủ cấu hình để tạo video. ' + (auto.error || ''), 0, [intoApp,
+        { label: 'Xem chi tiết', run: () => { finish(); navigate('engine'); } }]);
+      return;
+    }
     if (auto.stage === 'error' || st.phase === 'failed') {
       Splash.progress(viEngineError(auto.error || st.error || 'Engine không khởi động được'), 0, [
         { label: 'Thử lại', primary: true, run: () => { Splash.progress('Đang thử lại…', null); window.fv.engine.auto(); } },

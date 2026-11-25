@@ -87,14 +87,16 @@ registerPage('engine', (() => {
     els.status = h('div');
     els.wizard = h('div');
     els.packs = h('div');
-    page.append(els.status, els.wizard, els.packs,
+    els.mode = h('div');
+    page.append(els.mode, els.status, els.wizard, els.packs,
       h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('info'), h('h2', {}, 'Cấu hình cần có')),
         h('div', { class: 'card-body' }, h('div', { class: 'feature-list' },
           ['Windows 10/11 64-bit hoặc Linux, card NVIDIA RTX 30 trở lên', 'Tối thiểu 8 GB VRAM, 16 GB RAM (khuyên 12 GB+ / 32 GB)',
             'Driver NVIDIA 580 trở lên', 'Khoảng 70 GB ổ đĩa trống (thêm ~16 GB nếu tải mô hình ảnh)',
-            'macOS: chip Apple M, 24 GB bộ nhớ (bản thử nghiệm)', 'Mạng ổn định lúc tải (~50 GB, tải tiếp được nếu đứt)'].map((t) => h('div', {}, icon('check_circle', 'fill'), t))),
+            'macOS: chip Apple M, 24 GB bộ nhớ (bản thử nghiệm)', 'Chế độ nhẹ: card NVIDIA 6 GB (GTX 16xx, RTX 20xx…), 16 GB RAM, ~25 GB ổ đĩa', 'Mạng ổn định lúc tải (~50 GB, tải tiếp được nếu đứt)'].map((t) => h('div', {}, icon('check_circle', 'fill'), t))),
           h('div', { class: 'help mt' }, 'Bộ cài Max Video AI chỉ chứa ứng dụng và engine. Mô hình AI được tải về máy của bạn khi bấm Cài / Tải, rồi chạy hoàn toàn trên máy.'))));
     root.append(page);
+    drawMode();
     draw();
     refreshEngine();
     loadPacks();
@@ -102,6 +104,36 @@ registerPage('engine', (() => {
     packTimer = setInterval(() => { if (packs && packs.some((p) => p.busy)) loadPacks(); }, 3000);
   }
   function leave() { unsub.forEach((u) => u()); clearInterval(packTimer); }
+
+  /* ---------- Máy của bạn & chế độ chạy ---------- */
+  async function drawMode() {
+    const hw = await loadHardware(true);
+    if (!els.mode) return;
+    els.mode.innerHTML = '';
+    const mode = hw.mode || 'full';
+    const opt = (id, ic, title, desc, ok) => h('div', { class: 'mode-opt' + (mode === id ? ' on' : '') },
+      h('b', {}, icon(ic, 'fill'), title, mode === id ? h('span', { class: 'pill ok', style: { marginLeft: 'auto' } }, 'Đang dùng') : null),
+      h('small', {}, desc),
+      mode === id ? null : h('button', { class: 'btn ' + (ok ? 'btn-primary' : 'btn-outline'), style: { alignSelf: 'flex-start' }, onclick: () => switchMode(id, ok) },
+        icon('swap_horiz'), 'Chuyển sang ' + title.toLowerCase()));
+    els.mode.append(h('div', { class: 'card' },
+      h('div', { class: 'card-head' }, icon('computer'), h('h2', {}, 'Máy của bạn'), h('div', { class: 'grow' }),
+        h('button', { class: 'btn btn-text', onclick: () => drawMode() }, icon('refresh'), 'Kiểm tra lại')),
+      h('div', { class: 'card-body' }, hardwareBox(),
+        h('div', { class: 'mode-pick' },
+          opt('full', 'workspace_premium', 'Bản đầy đủ', 'MiniMax H3: video tới 15 giây có âm thanh, Tạo ảnh, Sửa ảnh, Lồng tiếng, Phụ đề, Autopilot. Cần RTX 30 trở lên (8 GB VRAM) hoặc Mac chip Apple. Tải ~50 GB.', hw.tier === 'full'),
+          opt('lite', 'speed', 'Chế độ nhẹ', 'Wan 2.2 5B (ComfyUI): video tới 5 giây, chưa có âm thanh, chỉ Tạo video. Cho card NVIDIA 6 GB trở lên (GTX 16xx, RTX 20xx…). Tải ~18 GB.', hw.tier === 'lite')))));
+  }
+  async function switchMode(id, ok) {
+    const name = id === 'lite' ? 'chế độ nhẹ' : 'bản đầy đủ';
+    if (!ok && !window.confirm('Máy của bạn không được khuyên dùng ' + name + '. Vẫn chuyển?')) return;
+    const r = await window.fv.engine.mode(id);
+    if (!r.ok) { toast(r.error.message, { kind: 'err' }); return; }
+    toast('Đã chuyển sang ' + name, { kind: 'ok', sub: r.data.installed ? 'Đang bật engine…' : 'Đang cài — mô hình tải ngầm, có thể tiếp tục dùng app.' });
+    App.caps = null;
+    await window.fv.engine.auto();
+    refreshEngine(); drawMode();
+  }
 
   /* ---------- Danh sách mô hình (đầy đủ như engine): tải riêng từng gói ---------- */
   let packs = null, packTimer = null, lastPhase = null, packErr = null;
@@ -136,6 +168,20 @@ registerPage('engine', (() => {
     if (!els.packs) return;
     els.packs.innerHTML = '';
     const st = Eng.st || {};
+    if (st.mode === 'lite') {
+      const g = (st.groups || [])[0];
+      const state = st.installed ? pill('ok', 'check_circle', 'Đã tải')
+        : st.phase === 'installing' && g ? bar(`Đang tải · ${fmtBytes(g.ready)} / ${fmtBytes(g.total)} (${pct(g.ready, g.total)}%)${speed(g.speed)}`, g.total ? g.ready / g.total : null)
+          : pill('', 'schedule', 'Chưa tải');
+      const rows = [['Mô hình video', 'Wan 2.2 TI2V 5B · 10 GB', 'Tạo video từ prompt / ảnh mở đầu'], ['Bộ đọc prompt', 'UMT5-XXL fp8 · 6,7 GB', 'Hiểu prompt'],
+        ['Bộ giải mã video', 'Wan 2.2 VAE · 1,4 GB', 'Giải mã khung hình'], ['ComfyUI + PyTorch', '~3,5 GB', 'Chạy mô hình trên card NVIDIA']]
+        .map(([n, m, u]) => h('tr', {}, h('td', {}, h('b', {}, n), h('div', { class: 'small-text muted' }, m)), h('td', { class: 'small-text muted' }, u), h('td', {}, state), h('td')));
+      els.packs.append(h('div', { class: 'card' },
+        h('div', { class: 'card-head' }, icon('deployed_code'), h('h2', {}, 'Mô hình chế độ nhẹ')),
+        h('div', { class: 'table-wrap' }, h('table', { class: 'data packs-table' }, h('thead', {}, h('tr', {}, ['Mô hình', 'Dùng cho', 'Trạng thái', ''].map((t) => h('th', {}, t)))), h('tbody', {}, rows))),
+        h('div', { class: 'card-body help', style: { marginTop: 0 } }, 'Wan 2.2 của Alibaba (giấy phép Apache-2.0, dùng thương mại được), chạy bằng ComfyUI ngay trên máy bạn.')));
+      return;
+    }
     const running = st.phase === 'running';
     const installing = st.phase === 'installing';
     const groups = st.groups || [];

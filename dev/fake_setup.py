@@ -31,6 +31,17 @@ for i, name in enumerate(steps):
     ev('task_end', key=str(i), label=name, detail='xong', done=100, total=100)
 if os.environ.get('FAKE_FAIL'):
     ev('failure', error='Mạng bị ngắt khi tải mô hình. Chạy lại để tải tiếp.'); sys.exit(1)
+# FAKE_ENCODER_FAIL: bước encoder-library-check lỗi (giống máy khách) cho tới khi môi trường envs/encoder bị xoá để dựng lại
+if os.environ.get('FAKE_ENCODER_FAIL'):
+    env = root / 'envs' / 'encoder'
+    if (env / 'broken').exists():
+        run = root / 'setup-runs' / ('run%d' % int(time.time()))
+        run.mkdir(parents=True, exist_ok=True)
+        (run / '06-encoder-library-check.log').write_text('Traceback (most recent call last):\nModuleNotFoundError: No module named comfy_kitchen\n')
+        ev('failure', error='RuntimeError: Failed step: encoder-library-check (exit code 1)\nRetained step log: %s' % (run / '06-encoder-library-check.log')); sys.exit(1)
+    if not env.exists():
+        env.mkdir(parents=True)   # dựng lại sạch
+
 (root / 'agent').mkdir(parents=True, exist_ok=True)
 mock = Path(__file__).parent / 'mock_root' / 'agent' / 'token'
 shutil.copy(mock, root / 'agent' / 'token')
