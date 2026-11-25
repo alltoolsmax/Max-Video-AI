@@ -232,7 +232,7 @@ const Poller = {
     this.busy = true;
     let active = false;
     try {
-      const data = await api('GET', '/jobs?limit=60');
+      const data = await api('GET', '/jobs?limit=100');
       const jobs = data.jobs || [];
       App.jobs = jobs;
       active = jobs.some((j) => ACTIVE.has(j.status));
