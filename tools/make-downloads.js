@@ -6,11 +6,11 @@
 //       max_ai_mrhuynh_win.zip   cho khách tải lần đầu (bên trong 1 tệp .exe)
 //       max_win.json      phiên bản, SHA-256, dung lượng (trang quản trị đọc)
 //
-// macOS (GitHub Actions tự gọi, không cần làm gì):  node tools/make-downloads.js --mac <arm64.dmg>  (chỉ chip Apple)
+// macOS (GitHub Actions tự gọi, không cần làm gì):  node tools/make-downloads.js --mac <arm64.dmg> <x64.dmg>
 //   → dist/downloads-mac/ = tệp TÊN CỐ ĐỊNH đưa lên GitHub Releases:
-//       max_ai_mrhuynh_mac.zip (khách tải lần đầu, bộ cài chip Apple) – link cố định
+//       max_ai_mrhuynh_mac.zip (khách tải lần đầu, bên trong 2 bộ cài) – link cố định
 //         https://github.com/alltoolsmax/Max-Video-AI/releases/latest/download/max_ai_mrhuynh_mac.zip
-//       max_ai_mrhuynh_mac_apple.dmg (phần mềm Mac tự cập nhật) + max_mac.json (máy chủ đọc)
+//       max_ai_mrhuynh_mac_apple.dmg / max_ai_mrhuynh_mac_intel.dmg (phần mềm Mac tự cập nhật) + max_mac.json (máy chủ đọc)
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -74,19 +74,20 @@ function win() {
   console.log('Đã tạo ' + z);
 }
 
-// Chỉ build cho Mac chip Apple (M1 trở lên): engine tạo video không chạy trên Mac chip Intel.
-function mac(arm) {
-  if (!arm || !fs.existsSync(arm)) { console.error('Không thấy ' + arm); process.exit(1); }
+function mac(arm, x64) {
+  for (const f of [arm, x64]) if (!f || !fs.existsSync(f)) { console.error('Không thấy ' + f); process.exit(1); }
   const out = fresh(path.join(DIST, 'downloads-mac'));
-  const info = { version: pkg.version, date: today(), archs: ['apple'] };
-  const name = 'max_ai_mrhuynh_mac_apple.dmg'; const dst = path.join(out, name);
-  fs.copyFileSync(arm, dst);
-  info.apple = { file: name, sha256: sha256(dst), size: fs.statSync(dst).size };
-  zipStore(path.join(out, 'max_ai_mrhuynh_mac.zip'), [[name, dst]]);
+  const info = { version: pkg.version, date: today(), archs: ['apple', 'intel'] };
+  for (const [chip, src] of [['apple', arm], ['intel', x64]]) {
+    const name = `max_ai_mrhuynh_mac_${chip}.dmg`; const dst = path.join(out, name);
+    fs.copyFileSync(src, dst);
+    info[chip] = { file: name, sha256: sha256(dst), size: fs.statSync(dst).size };
+  }
+  zipStore(path.join(out, 'max_ai_mrhuynh_mac.zip'), ['max_ai_mrhuynh_mac_apple.dmg', 'max_ai_mrhuynh_mac_intel.dmg'].map((n) => [n, path.join(out, n)]));
   info.zip = 'max_ai_mrhuynh_mac.zip'; info.zip_size = fs.statSync(path.join(out, 'max_ai_mrhuynh_mac.zip')).size;
   fs.writeFileSync(path.join(out, 'max_mac.json'), JSON.stringify(info, null, 1));
   console.log('Đã tạo ' + out + ': ' + fs.readdirSync(out).join(', '));
 }
 
-if (process.argv[2] === '--mac') mac(process.argv[3]);
+if (process.argv[2] === '--mac') mac(process.argv[3], process.argv[4]);
 else win();

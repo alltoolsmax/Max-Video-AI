@@ -1,7 +1,7 @@
 {
   "name": "max-ai",
   "productName": "Max AI",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "description": "Max Video AI by Mr. Huỳnh — miễn phí, tự tải mô hình và tạo video & ảnh AI ngay trên máy (MiniMax H3)",
   "main": "src/main/main.js",
   "author": "Mr. Huỳnh",
@@ -13,7 +13,7 @@
     "harness": "node dev/harness.js",
     "hosting": "node tools/prepare-hosting.js",
     "dist": "electron-builder --win nsis --x64",
-    "dist:mac": "electron-builder --mac dmg --arm64",
+    "dist:mac": "electron-builder --mac dmg --x64 --arm64",
     "dist:linux": "electron-builder --linux AppImage"
   },
   "dependencies": {
@@ -58,6 +58,7 @@
         {
           "target": "dmg",
           "arch": [
+            "x64",
             "arm64"
           ]
         }
