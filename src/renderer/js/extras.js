@@ -102,7 +102,7 @@ async function openAbout() {
     h('dl', { class: 'kv' },
       h('dt', {}, 'Giấy phép'), h('dd', {}, 'Miễn phí · không giới hạn'),
       h('dt', {}, 'Mã máy'), h('dd', {}, h('code', {}, info.machine)),
-      h('dt', {}, 'Engine'), h('dd', {}, 'FreeVideo (Apache-2.0) · MiniMax H3 / VDN-H3')),
+      h('dt', {}, 'Engine'), h('dd', {}, 'Max AI Engine · MiniMax H3 / VDN-H3')),
     h('div', { class: 'help', style: { textAlign: 'center' } }, `© ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Trọng số model theo MiniMax H3 Community License.`),
     h('div', { class: 'foot', style: { justifyContent: 'center' } },
       h('button', { class: 'btn', onclick: () => { closeModal(); navigate('engine'); } }, icon('memory'), 'Engine & mô hình'),

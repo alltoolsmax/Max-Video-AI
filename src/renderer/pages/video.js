@@ -85,7 +85,7 @@ registerPage('video', (() => {
       h('button', { class: 'tab', 'data-mode': 'simple', onclick: () => setMode('simple') }, 'Đơn giản'),
       h('button', { class: 'tab', 'data-mode': 'raw', onclick: () => setMode('raw') }, 'Prompt đầy đủ'));
     els.tabs = tabs;
-    els.enhanceBtn = h('button', { class: 'btn btn-outline', onclick: enhancePrompt, title: 'Dùng AI cục bộ của FreeVideo viết lại thành prompt chi tiết' },
+    els.enhanceBtn = h('button', { class: 'btn btn-outline', onclick: enhancePrompt, title: 'Dùng AI chạy trên máy viết lại thành prompt chi tiết' },
       icon('auto_awesome'), 'Viết lại bằng AI');
     left.append(els.continueBanner, h('div', { class: 'card' },
       h('div', { class: 'card-head' }, h('h2', {}, 'Mô tả video'), h('div', { class: 'grow' }), els.enhanceBtn),
@@ -243,8 +243,8 @@ registerPage('video', (() => {
   function updateEnhance() {
     const ready = Boolean(App.caps && App.caps.features && App.caps.features.enhance);
     els.enhanceBtn.disabled = !App.connected || !ready;
-    els.enhanceBtn.title = ready ? 'Dùng AI cục bộ của FreeVideo viết lại ý tưởng thành prompt chi tiết'
-      : 'AI viết prompt chưa sẵn sàng — cần cài model "Prompt VLM" trong FreeVideo';
+    els.enhanceBtn.title = ready ? 'Dùng AI chạy trên máy viết lại ý tưởng thành prompt chi tiết'
+      : 'AI viết prompt chưa có — tải gói "AI viết prompt" ở mục Engine & mô hình';
   }
 
   /* ---------- Ước tính (POST /plan) ---------- */
@@ -274,8 +274,8 @@ registerPage('video', (() => {
     box.innerHTML = '';
     const prompt = composedPrompt();
     if (!App.connected) {
-      box.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('link_off'), h('div', {}, 'Chưa kết nối FreeVideo. ',
-        h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('settings'); } }, 'Mở Cài đặt'))));
+      box.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('link_off'), h('div', {}, 'Engine chưa chạy. ',
+        h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Mở Engine & mô hình'))));
     }
     if (lastPlan && lastPlan.estimate && lastPlan.estimate.seconds) {
       const total = lastPlan.estimate.seconds * (state.takes || 1);

@@ -1,5 +1,5 @@
 'use strict';
-/* Trang Thư viện: video đã lưu của FreeVideo */
+/* Trang Thư viện: video đã tạo */
 
 registerPage('library', (() => {
   const els = {};
@@ -14,7 +14,7 @@ registerPage('library', (() => {
     els.search = h('input', { class: 'input', style: { width: '320px' }, placeholder: 'Lọc theo nội dung prompt…', value: query,
       onkeydown: (e) => { if (e.key === 'Enter') { query = els.search.value.trim(); reload(); } } });
     page.append(h('div', { class: 'page-head' },
-      h('div', {}, h('h1', {}, 'Thư viện'), h('div', { class: 'sub' }, 'Tất cả video FreeVideo đã lưu trên máy này.')),
+      h('div', {}, h('h1', {}, 'Thư viện'), h('div', { class: 'sub' }, 'Tất cả video đã tạo, lưu ngay trên máy này.')),
       h('div', { class: 'grow' }), els.search,
       h('button', { class: 'btn btn-outline', onclick: () => { query = els.search.value.trim(); reload(); } }, icon('search'), 'Tìm'),
       h('button', { class: 'btn btn-primary', onclick: () => navigate('video') }, icon('add'), 'Tạo video')));

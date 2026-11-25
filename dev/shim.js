@@ -12,8 +12,6 @@
     config: {
       get: () => call('config:get'),
       set: (values) => call('config:set', values),
-      detect: () => call('config:detect'),
-      pickRoot: () => call('config:pickRoot'),
     },
     api: (method, route, body) => call('api', { method, route, body }),
     pickFiles: (kinds, multiple) => call('files:pick', { kinds, multiple }),
@@ -28,6 +26,7 @@
       pickModels: () => call('engine:pickModels'), plan: (o) => call('engine:plan', o), install: (o) => call('engine:install', o),
       cancel: () => call('engine:cancel'), start: () => call('engine:start'), stop: () => call('engine:stop'),
       autostart: (value) => call('engine:autostart', { value }),
+      packs: () => call('engine:packs'), pack: (id, action) => call('engine:pack', { id, action }),
     },
     update: { check: () => call('update:check'), download: () => call('update:download'), install: () => call('update:install') },
     open: (url) => call('shell:open', { url }),

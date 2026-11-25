@@ -1,0 +1,6 @@
+{
+  "name": "Max AI Engine",
+  "upstream": "FlashML-org/FreeVideo",
+  "tag": "v0.6.11",
+  "commit": "d2a0cbbdb15a3c216a4e7a5905bc0a2913796bfb"
+}

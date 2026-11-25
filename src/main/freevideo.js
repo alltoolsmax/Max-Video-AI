@@ -1,17 +1,14 @@
 'use strict';
-// Kết nối tới FreeVideo agent API (/freevideo/agent/v1) — chạy trong main process, không phụ thuộc Electron.
+// Kết nối tới API cục bộ của Max AI Engine (/freevideo/agent/v1) — chạy trong main process, không phụ thuộc Electron.
 // Token chỉ nằm ở đây; giao diện (renderer) không bao giờ thấy token.
 
 const fs = require('fs');
 const fsp = require('fs/promises');
-const os = require('os');
 const path = require('path');
 
 const PREFIX = '/freevideo/agent/v1';
 const CLIENT_NAME = 'Max AI';
 const DEFAULT_URL = 'http://127.0.0.1:8188';
-const SKIP_DIRS = new Set(['node_modules', '.git', 'models', 'venv', '.venv', 'output', 'input', 'temp',
-  'user', '__pycache__', 'web', 'site-packages', 'Lib', 'lib', 'python_embeded', '.cache']);
 
 class Connection {
   constructor(settings = {}) {
@@ -27,7 +24,7 @@ class Connection {
     try { return fs.readFileSync(path.join(this.root, 'agent', 'token'), 'ascii').trim() || null; } catch { return null; }
   }
 
-  // endpoint.json do FreeVideo ghi lúc khởi động: cho biết đúng cổng ComfyUI đang chạy.
+  // endpoint.json do engine ghi lúc khởi động: cho biết đúng cổng đang chạy.
   endpointUrl() {
     if (!this.root) return null;
     try {
@@ -48,7 +45,7 @@ class Connection {
   // Gọi một route của agent API; luôn trả {ok, status, data} — không ném lỗi ra renderer.
   async request(method, route, body, { timeoutMs = 60000 } = {}) {
     if (!isSafeRoute(route)) return fail(0, 'invalid_request', 'Đường dẫn API không hợp lệ.');
-    if (!this.token()) return fail(0, 'no_token', 'Chưa tìm thấy token của FreeVideo. Hãy chọn thư mục cài đặt FreeVideo trong Cài đặt.');
+    if (!this.token()) return fail(0, 'no_token', 'Engine chưa cài hoặc chưa bật. Vào mục Engine & mô hình.');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -60,8 +57,8 @@ class Connection {
       const response = await fetch(this.url + PREFIX + route, init);
       return await readReply(response);
     } catch (error) {
-      if (error.name === 'AbortError') return fail(0, 'timeout', 'FreeVideo không trả lời kịp.');
-      return fail(0, 'unreachable', 'Không kết nối được tới FreeVideo tại ' + this.url + '. Hãy mở FreeVideo/ComfyUI trước.');
+      if (error.name === 'AbortError') return fail(0, 'timeout', 'Engine không trả lời kịp.');
+      return fail(0, 'unreachable', 'Engine chưa chạy. Vào mục Engine & mô hình và bấm Bật engine.');
     } finally {
       clearTimeout(timer);
     }
@@ -69,7 +66,7 @@ class Connection {
 
   // Tải một file trên máy lên /media (multipart, đọc dần từ đĩa nên file lớn vẫn ổn).
   async upload(filePath) {
-    if (!this.token()) return fail(0, 'no_token', 'Chưa có token của FreeVideo.');
+    if (!this.token()) return fail(0, 'no_token', 'Engine chưa cài hoặc chưa bật.');
     let stat;
     try { stat = await fsp.stat(filePath); } catch { return fail(0, 'invalid_media', 'Không đọc được file này.'); }
     if (!stat.isFile() || stat.size === 0) return fail(0, 'invalid_media', 'File rỗng hoặc không hợp lệ.');
@@ -86,7 +83,7 @@ class Connection {
       if (reply.ok && reply.data) reply.data.original_name = path.basename(filePath);
       return reply;
     } catch {
-      return fail(0, 'unreachable', 'Không tải được file lên FreeVideo.');
+      return fail(0, 'unreachable', 'Không tải được file lên engine.');
     }
   }
 
@@ -151,44 +148,4 @@ function fail(status, code, message) {
   return { ok: false, status, error: { code, message } };
 }
 
-// Các nơi FreeVideo thường được cài; trả về những thư mục có agent/token.
-function candidateRoots() {
-  const home = os.homedir();
-  const list = [];
-  if (process.env.FREEVIDEO_HOME) list.push(process.env.FREEVIDEO_HOME);
-  if (process.platform === 'win32') {
-    const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
-    list.push(path.join(local, 'FreeVideo'), path.join(home, 'FreeVideo'), 'C:\\FreeVideo', 'D:\\FreeVideo');
-  } else if (process.platform === 'darwin') {
-    list.push(path.join(home, 'Library', 'Application Support', 'FreeVideo'), path.join(home, 'FreeVideo'),
-      path.join(home, 'ComfyUI', 'custom_nodes', 'FreeVideo'));
-  } else {
-    list.push(path.join(home, '.local', 'share', 'freevideo'), path.join(home, 'FreeVideo'),
-      path.join(home, 'ComfyUI', 'custom_nodes', 'FreeVideo'));
-  }
-  return list;
-}
-
-// Tìm thư mục chứa agent/token bên trong `start` (đi sâu tối đa `depth` cấp, bỏ qua thư mục nặng).
-async function findTokenRoots(start, depth = 4, found = new Set()) {
-  try {
-    await fsp.access(path.join(start, 'agent', 'token'));
-    found.add(path.resolve(start));
-  } catch { /* không có ở đây */ }
-  if (depth <= 0 || found.size >= 8) return found;
-  let entries = [];
-  try { entries = await fsp.readdir(start, { withFileTypes: true }); } catch { return found; }
-  for (const entry of entries) {
-    if (!entry.isDirectory() || SKIP_DIRS.has(entry.name) || entry.name.startsWith('.') && entry.name !== '.freevideo') continue;
-    await findTokenRoots(path.join(start, entry.name), depth - 1, found);
-  }
-  return found;
-}
-
-async function detectRoots() {
-  const found = new Set();
-  for (const root of candidateRoots()) await findTokenRoots(root, 4, found);
-  return [...found];
-}
-
-module.exports = { Connection, detectRoots, findTokenRoots, normalizeUrl, isSafeRoute, PREFIX, DEFAULT_URL };
+module.exports = { Connection, normalizeUrl, isSafeRoute, PREFIX, DEFAULT_URL };

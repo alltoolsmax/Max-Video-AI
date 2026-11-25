@@ -1,7 +1,7 @@
 {
   "name": "max-ai",
   "productName": "Max AI",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Max AI by Mr. Huỳnh — miễn phí, tự tải mô hình và tạo video & ảnh AI ngay trên máy (engine FreeVideo / MiniMax H3)",
   "main": "src/main/main.js",
   "author": "Mr. Huỳnh",
@@ -27,9 +27,20 @@
   "build": {
     "appId": "net.mrhuynh.maxai",
     "productName": "Max AI",
-    "directories": { "output": "dist" },
-    "files": ["src/**/*", "assets/**/*", "package.json"],
-    "win": { "icon": "assets/icon.ico", "target": ["nsis"] },
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -42,9 +53,36 @@
       "icon": "assets/icon.icns",
       "category": "public.app-category.video",
       "identity": null,
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }]
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
     },
-    "dmg": { "title": "Max AI", "artifactName": "MaxAI-${version}-${arch}.dmg" },
-    "linux": { "icon": "assets/icon.png", "target": "AppImage", "category": "Video", "artifactName": "MaxAI-${version}.AppImage" }
+    "dmg": {
+      "title": "Max AI",
+      "artifactName": "MaxAI-${version}-${arch}.dmg"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": "AppImage",
+      "category": "Video",
+      "artifactName": "MaxAI-${version}.AppImage"
+    },
+    "extraResources": [
+      {
+        "from": "engine",
+        "to": "engine",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      }
+    ]
   }
 }

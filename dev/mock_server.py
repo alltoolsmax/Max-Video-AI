@@ -29,6 +29,7 @@ LOCK = threading.Lock()
 JOBS = {}       # id -> row
 ORDER = []      # mới nhất trước
 LIBRARY = []    # mới nhất trước
+PACKS = {'image-h3': 'missing', 'vlm': 'missing'}   # gói mô hình giả lập
 
 
 def now():
@@ -269,7 +270,29 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return path[len(PREFIX):]
 
+    def mock_packs(self):
+        path = urlsplit(self.path).path
+        st = PACKS
+        if path == '/freevideo/image-gen':
+            return self.send_json(200, dict(token='t', models=[
+                dict(id='minimax-h3-image', ready=st['image-h3'] == 'ready', available=True, downloading=st['image-h3'] == 'busy', bytes_needed=16 * 2**30,
+                     install=dict(state='running', done=int(time.time() % 60) * 2**28, total=16 * 2**30) if st['image-h3'] == 'busy' else None),
+                dict(id='qwen-image-2.1-turbo', ready=True, available=True)], segment=dict(ready=False, install=None)))
+        if path == '/freevideo/prompt-vlm':
+            return self.send_json(200, dict(token='t', ready=st['vlm'] == 'ready', bytes=5 * 2**30, busy=st['vlm'] == 'busy'))
+        if path == '/freevideo/dubbing':
+            return self.send_json(200, dict(token='t', ready=False, bytes=3 * 2**30, busy=False))
+        if path == '/freevideo/editor/subtitle-pack':
+            return self.send_json(200, dict(supported=True, published=True, ready=False, install={}))
+        if path == '/freevideo/editor/music-pack':
+            return self.send_json(200, dict(ready=False, bytes=2 * 2**30))
+        return None
+
     def do_GET(self):
+        if urlsplit(self.path).path.startswith('/freevideo/') and not self.path.startswith(PREFIX):
+            if self.mock_packs() is None:
+                self.send_json(404, {})
+            return
         route = self.route()
         if route is None or not self.authorized():
             return route is None and self.send_json(404, {})
@@ -325,6 +348,13 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json(*problem(404, 'not_found', 'No contract'))
 
     def do_POST(self):
+        path = urlsplit(self.path).path
+        if path.startswith('/freevideo/') and not path.startswith(PREFIX):
+            self.rfile.read(int(self.headers.get('Content-Length') or 0))
+        if path == '/freevideo/image-gen/pack-install':
+            PACKS['image-h3'] = 'busy'; return self.send_json(200, {})
+        if path == '/freevideo/prompt-vlm/install':
+            PACKS['vlm'] = 'ready'; return self.send_json(200, {})
         route = self.route()
         if route is None or not self.authorized():
             return route is None and self.send_json(404, {})

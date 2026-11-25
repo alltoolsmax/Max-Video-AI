@@ -3,7 +3,7 @@
 © 2026 Huỳnh Xuyên Sơn (Mr. Huỳnh) · Zalo 0979 007 367 · info@mrhuynh.net · mrhuynh.net
 
 Ứng dụng desktop **miễn phí** tạo video và ảnh AI **ngay trên máy tính của bạn**. Không cần key, không có gói trả phí.
-App tự tải và chạy engine [FreeVideo](https://github.com/FlashML-org/FreeVideo) (MiniMax H3 / VDN-H3, chạy được từ 8 GB VRAM), giống FreeVideo.
+App chạy độc lập: bộ cài chứa sẵn **Max AI Engine**. Không cần cài phần mềm nào khác. Mô hình AI **không** nằm trong bộ cài, app tải mô hình về máy khi bạn bấm Cài / Tải, rồi chạy hoàn toàn trên máy (MiniMax H3 / VDN-H3, chạy được từ 8 GB VRAM).
 Giao diện cùng tông với GCloud Hub. Đếm máy, cập nhật online và video hướng dẫn dùng chung trang quản trị `active.mrhuynh.net/admin`.
 
 ## Tính năng
@@ -13,17 +13,18 @@ Giao diện cùng tông với GCloud Hub. Đếm máy, cập nhật online và v
 | Tạo video | Viết mô tả kiểu đơn giản (hình ảnh / âm thanh / nhạc) hoặc prompt đầy đủ, có **Viết lại bằng AI**. Chọn được khung hình đầu/cuối, tham chiếu, tỉ lệ, thời lượng tới 60 giây, 4 mức chất lượng, nhiều bản, seed, xem trước, LoRA. Có **ước tính thời gian trên đúng máy của bạn** và làm tiếp video |
 | Tạo ảnh | MiniMax H3 Image (tới 16 MP) / Qwen Image, sửa và ghép ảnh, “Làm video từ ảnh này” |
 | Hàng đợi · Thư viện | Tiến độ theo từng bước, huỷ, chạy lại, tải về; xem lại mọi video đã tạo |
-| Cài đặt | Giao diện tối/sáng, kiểm tra cập nhật, nối với FreeVideo đã cài sẵn (nâng cao) |
+| Mô hình AI trên máy | Danh sách đầy đủ mô hình của engine, tải riêng từng gói: tạo video (MiniMax H3 · VDN-H3), tạo ảnh chất lượng cao (MiniMax H3 Image), tạo ảnh nhanh (Qwen Image 2.1 Turbo), chọn vùng (SAM 2), AI viết prompt (Prompt VLM), lồng tiếng (CosyVoice 3), phụ đề (nhận dạng giọng nói), nhạc nền. Có tiến độ, dừng / tải tiếp |
+| Cài đặt | Giao diện tối/sáng, thông tin máy, kiểm tra cập nhật |
 | Sắp có | Dựng timeline · Sửa ảnh · Nhân vật · Autopilot · Lồng tiếng · Phụ đề |
 
 ## Engine chạy trong máy như thế nào
-1. Max AI tải mã nguồn engine FreeVideo (bản đã gắn sẵn trong `src/main/engine.js`, hiện là `v0.6.11`) vào thư mục cài, ví dụ `D:\MaxAI-Engine\FreeVideo`.
-2. Bước **Kiểm tra máy** chạy trình cài của chính FreeVideo ở chế độ chỉ đọc (`setup --plan --json`) để xem máy có chạy được không.
-3. Bước **Cài** chạy trình cài của FreeVideo (`setup --yes --accept-model-license`). Trình cài tự lo hết:
-   - Python riêng và môi trường CUDA.
-   - Tải và kiểm tra mô hình (~50 GB).
-   - Chọn định dạng int8/FP8 hợp với card đồ họa.
-4. **Bật engine**: Max AI cài ComfyUI nếu còn thiếu rồi chạy ngầm ở `127.0.0.1`. Giao diện gọi engine qua API cục bộ `/freevideo/agent/v1`.
+1. Bộ cài mang sẵn mã nguồn Max AI Engine (thư mục `engine/`, khoảng 70 MB, không có mô hình). Lần đầu, app chép engine vào thư mục cài người dùng chọn, ví dụ `D:\MaxAI-Engine\engine`. Mọi dữ liệu của engine nằm gọn trong thư mục đó.
+2. **Kiểm tra máy** chạy trình cài của engine ở chế độ chỉ đọc (`setup --plan --json`): GPU, VRAM, RAM, ổ đĩa, dung lượng cần tải.
+3. **Cài** chạy `setup --yes --accept-model-license`: tạo Python riêng và môi trường CUDA, **tải mô hình tạo video về máy** (~50 GB), chọn int8/FP8 hợp với card. Dừng được, lần sau tải tiếp.
+4. **Bật engine**: chạy ngầm ở `127.0.0.1`. Giao diện gọi engine qua API cục bộ.
+5. Các mô hình còn lại (ảnh, prompt, lồng tiếng, phụ đề, nhạc) tải riêng ở thẻ **Mô hình AI trên máy** khi engine đang chạy.
+
+Cập nhật engine cho bản phát hành sau: `node tools/sync-engine.js <tag>` rồi build lại.
 
 Cấu hình cần có:
 - Windows 10/11 64-bit hoặc Linux, card NVIDIA RTX 30 trở lên, tối thiểu 8 GB VRAM và 16 GB RAM, driver 580 trở lên.
@@ -72,14 +73,15 @@ Link cố định cho khách cài lần đầu:
 
 ## Cấu trúc
 ```
-src/main/       main.js (cửa sổ) · engine.js (tải/cài/bật engine FreeVideo trong máy) · freevideo.js (API engine, token)
+src/main/       main.js (cửa sổ) · engine.js (cài/bật engine trong máy) · packs.js (gói mô hình) · freevideo.js (API engine, token)
                 device.js (đếm máy, video hướng dẫn) · updater.js (cập nhật online) · bridge.js · server-config.json
+engine/         Max AI Engine (mã nguồn mở Apache-2.0, đóng vào bộ cài, không có mô hình)
 src/renderer/   index.html · styles.css (tông GCloud Hub) · js/ · pages/ (engine, video, image, queue, library, settings, soon)
 hosting/        máy chủ PHP: maxai/ (API), admin/maxai_api.php (+ api.php, index.html đã gộp), active_private/maxai/lib.php
-tools/          prepare-hosting.js (gói zip hosting) · make-downloads.js (gói phát hành, GitHub Actions gọi)
+tools/          sync-engine.js (cập nhật engine) · prepare-hosting.js (gói zip hosting) · make-downloads.js (gói phát hành, GitHub Actions gọi)
 ```
 
 ## Giấy phép bên thứ ba
-- Engine FreeVideo: Apache License 2.0. Max AI tải mã nguồn gốc từ GitHub của FlashML-org và không sửa mã đó.
+- Max AI Engine dựa trên mã nguồn mở FlashML-org/FreeVideo (Apache License 2.0), giữ nguyên LICENSE / NOTICE trong `engine/`.
 - Mô hình MiniMax H3 / VDN-H3: MiniMax H3 Community License, có giới hạn lãnh thổ và mục đích sử dụng. Người dùng phải đồng ý trước khi tải.
 - Material Symbols (Apache-2.0), Roboto (OFL-1.1).

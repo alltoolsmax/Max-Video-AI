@@ -67,7 +67,7 @@ function field(label, control, help, optional) {
     control, help ? h('div', { class: 'help' }, help) : null);
 }
 
-/* Ô chọn file: bấm để chọn hoặc kéo-thả; tự tải lên FreeVideo. value = { file, url, kind, name } */
+/* Ô chọn file: bấm để chọn hoặc kéo-thả; tự đưa vào engine. value = { file, url, kind, name } */
 function mediaSlot({ title, desc, kinds = ['image'], value = null, onChange, iconName = 'add_photo_alternate', extra }) {
   const slot = h('div', { class: 'slot', tabindex: 0, role: 'button' });
   let current = value;

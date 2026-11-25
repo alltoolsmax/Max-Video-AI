@@ -1,5 +1,5 @@
 'use strict';
-/* Trang Engine & mô hình: tự cài engine FreeVideo + tải mô hình MiniMax H3 ngay trên máy (giống FreeVideo), bật/tắt engine. */
+/* Trang Engine & mô hình: cài Max AI Engine, tải mô hình về máy, bật/tắt engine, quản lý từng gói mô hình. */
 
 const ENGINE_PHASE = {
   idle: ['Chưa cài', 'bad'], planning: ['Đang kiểm tra máy', 'warn'], planned: ['Chưa cài', 'bad'], installing: ['Đang cài & tải mô hình', 'warn'],
@@ -9,7 +9,7 @@ const ENGINE_PHASE = {
 const gib = (b) => (b ? (b / 2 ** 30).toFixed(b >= 10 * 2 ** 30 ? 0 : 1) + ' GB' : '—');
 const Eng = { st: null };
 
-// Dịch các lỗi hay gặp của trình cài FreeVideo sang tiếng Việt (giữ nguyên câu gốc nếu không nhận ra).
+// Dịch các lỗi hay gặp của trình cài engine sang tiếng Việt (giữ nguyên câu gốc nếu không nhận ra).
 function viEngineError(t) {
   if (!t) return t;
   return String(t)
@@ -78,23 +78,73 @@ registerPage('engine', (() => {
   function render(root) {
     const page = h('div', { class: 'page', style: { maxWidth: '1100px' } });
     page.append(h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, 'Engine & mô hình'),
-      h('div', { class: 'sub' }, 'Max AI tự cài engine FreeVideo và tải mô hình MiniMax H3 về chạy ngay trên máy của bạn — miễn phí, không giới hạn.'))));
+      h('div', { class: 'sub' }, 'Max AI tự cài engine và tải mô hình AI về chạy ngay trên máy của bạn — miễn phí, không giới hạn, không gửi dữ liệu đi đâu.'))));
     els.status = h('div');
     els.wizard = h('div');
-    page.append(els.status, els.wizard,
+    els.packs = h('div');
+    page.append(els.status, els.wizard, els.packs,
       h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('info'), h('h2', {}, 'Cấu hình cần có')),
         h('div', { class: 'card-body' }, h('div', { class: 'feature-list' },
           ['Windows 10/11 64-bit hoặc Linux, card NVIDIA RTX 30 trở lên', 'Tối thiểu 8 GB VRAM, 16 GB RAM (khuyên 12 GB+ / 32 GB)',
             'Driver NVIDIA 580 trở lên', 'Khoảng 70 GB ổ đĩa trống (thêm ~16 GB nếu tải mô hình ảnh)',
             'macOS: chip Apple M, 24 GB bộ nhớ (bản thử nghiệm)', 'Mạng ổn định lúc tải (~50 GB, tải tiếp được nếu đứt)'].map((t) => h('div', {}, icon('check_circle', 'fill'), t))),
-          h('div', { class: 'help mt' }, 'Đã cài FreeVideo từ trước? Vào ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('settings'); } }, 'Cài đặt › Kết nối FreeVideo có sẵn'),
-            ' để dùng lại, không cần tải lại mô hình.'))));
+          h('div', { class: 'help mt' }, 'Bộ cài Max AI chỉ chứa ứng dụng và engine. Mô hình AI được tải về máy của bạn khi bấm Cài / Tải, rồi chạy hoàn toàn trên máy.'))));
     root.append(page);
     draw();
     refreshEngine();
-    unsub = [App.on('engine', draw)];
+    loadPacks();
+    unsub = [App.on('engine', (st) => { draw(); if (st && st.phase !== lastPhase) { lastPhase = st.phase; loadPacks(); } })];
+    packTimer = setInterval(() => { if (packs && packs.some((p) => p.busy)) loadPacks(); }, 3000);
   }
-  function leave() { unsub.forEach((u) => u()); }
+  function leave() { unsub.forEach((u) => u()); clearInterval(packTimer); }
+
+  /* ---------- Danh sách mô hình (đầy đủ như engine): tải riêng từng gói ---------- */
+  let packs = null, packTimer = null, lastPhase = null, packErr = null;
+  async function loadPacks() {
+    const r = await window.fv.engine.packs();
+    if (r.ok) { packs = r.data; packErr = null; } else packErr = r.error.message;
+    drawPacks();
+  }
+  function drawPacks() {
+    if (!els.packs) return;
+    els.packs.innerHTML = '';
+    const st = Eng.st || {};
+    const running = st.phase === 'running';
+    const body = h('div', { class: 'table-wrap' });
+    const rows = (packs || []).map((p) => {
+      let state, action = null;
+      if (p.ready) state = h('span', { class: 'pill ok' }, icon('check_circle', 'small'), 'Đã tải');
+      else if (p.busy) {
+        const frac = p.progress && p.progress.total ? p.progress.done / p.progress.total : null;
+        state = h('div', { class: 'mini-progress' }, h('div', { class: 'lbl' }, 'Đang tải' + (p.progress && p.progress.total ? ` · ${fmtBytes(p.progress.done)} / ${fmtBytes(p.progress.total)}` : '…')), progressBar(frac));
+        action = p.core ? null : h('button', { class: 'btn btn-text btn-danger', onclick: () => packDo(p, 'cancel') }, icon('pause_circle'), 'Dừng');
+      } else if (p.core) {
+        state = h('span', { class: 'pill bad' }, 'Chưa cài');
+        action = h('button', { class: 'btn btn-text', onclick: () => window.scrollTo(0, 0) }, icon('arrow_upward'), 'Cài ở trên');
+      } else if (!running) state = h('span', { class: 'pill' }, 'Bật engine để tải');
+      else if (!p.available) state = h('span', { class: 'pill' }, p.error || 'Chưa hỗ trợ trên máy này');
+      else {
+        state = h('span', { class: 'pill' }, p.bytes ? 'Chưa tải · ' + gib(p.bytes) : 'Chưa tải');
+        action = h('button', { class: 'btn btn-primary', onclick: () => packDo(p, 'install') }, icon('download'), 'Tải');
+      }
+      return h('tr', {}, h('td', {}, h('b', {}, p.name), h('div', { class: 'small-text muted' }, p.model)),
+        h('td', { class: 'small-text muted' }, p.use), h('td', {}, state, p.error && !p.ready && p.available ? h('div', { class: 'small-text', style: { color: 'var(--err)' } }, viEngineError(p.error)) : null),
+        h('td', { style: { textAlign: 'right' } }, action));
+    });
+    body.append(h('table', { class: 'data' }, h('thead', {}, h('tr', {}, ['Mô hình', 'Dùng cho', 'Trạng thái', ''].map((t) => h('th', {}, t)))), h('tbody', {}, rows)));
+    els.packs.append(h('div', { class: 'card' },
+      h('div', { class: 'card-head' }, icon('deployed_code'), h('h2', {}, 'Mô hình AI trên máy'), h('span', { class: 'hint' }, 'tải riêng từng gói, chỉ khi cần'),
+        h('div', { class: 'grow' }), h('button', { class: 'btn btn-text', onclick: loadPacks }, icon('refresh'), 'Làm mới')),
+      packErr ? h('div', { class: 'card-body' }, h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('error'), packErr)) : null,
+      packs ? body : h('div', { class: 'card-body muted' }, 'Đang đọc…'),
+      h('div', { class: 'card-body help', style: { marginTop: 0 } }, 'Mô hình tạo video được tải khi cài engine. Các mô hình khác tải về máy khi bạn bấm Tải; tải lúc engine đang tạo video sẽ tự nhường GPU. Mô hình theo giấy phép của từng nhà phát hành (MiniMax H3 Community License, …).')));
+  }
+  async function packDo(p, action) {
+    const r = await window.fv.engine.pack(p.id, action);
+    if (!r.ok) toast(r.error.message, { kind: 'err' });
+    else if (action === 'install') toast('Bắt đầu tải ' + p.name, { kind: 'ok', sub: 'Có thể tiếp tục dùng Max AI trong lúc tải.' });
+    setTimeout(loadPacks, 800);
+  }
 
   function draw() {
     const st = Eng.st;
@@ -111,7 +161,7 @@ registerPage('engine', (() => {
         h('dl', { class: 'kv', style: { maxWidth: '640px' } },
           h('dt', {}, 'Thư mục cài'), h('dd', {}, h('code', {}, st.root)),
           h('dt', {}, 'Ổ đĩa còn trống'), h('dd', {}, gib(st.freeBytes)),
-          h('dt', {}, 'Phiên bản engine'), h('dd', {}, 'FreeVideo ' + (st.source ? st.source.tag : st.engineTag)),
+          h('dt', {}, 'Phiên bản engine'), h('dd', {}, 'Max AI Engine ' + (st.source ? st.source.tag : st.engineTag)),
           st.installed ? [h('dt', {}, 'Card đồ họa'), h('dd', {}, (m.gpu || '—') + (m.backend === 'mps' ? ' (Apple)' : ''))] : null,
           st.installed && m.format ? [h('dt', {}, 'Định dạng mô hình'), h('dd', {}, m.format)] : null,
           st.url ? [h('dt', {}, 'Địa chỉ engine'), h('dd', {}, h('code', {}, st.url))] : null),

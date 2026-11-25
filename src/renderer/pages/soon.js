@@ -2,7 +2,7 @@
 /* Các tính năng của giai đoạn sau */
 
 const SOON = {
-  timeline: ['view_timeline', 'Dựng timeline', 'Ghép nhiều clip trên timeline, cắt, chuyển cảnh, thêm nhạc và xuất video. FreeVideo đã có API cho dự án dựng (projects).'],
+  timeline: ['view_timeline', 'Dựng timeline', 'Ghép nhiều clip trên timeline, cắt, chuyển cảnh, thêm nhạc và xuất video. Engine đã hỗ trợ sẵn phần dựng.'],
   'image-edit': ['auto_fix_high', 'Sửa ảnh', 'Chỉnh sửa ảnh theo lớp: xoá vật thể, thay nền, vẽ lại một vùng.'],
   cast: ['groups', 'Nhân vật', 'Thẻ nhân vật và bối cảnh để giữ người/cảnh giống nhau qua nhiều video.'],
   autopilot: ['smart_toy', 'Autopilot', 'Trò chuyện với AI để lên kịch bản và tự tạo phim ngắn nhiều cảnh.'],

@@ -1,5 +1,5 @@
 'use strict';
-/* Trang Hàng đợi: mọi job (của app này, của trang FreeVideo, của AI agent) */
+/* Trang Hàng đợi: mọi việc engine đang làm */
 
 registerPage('queue', (() => {
   let unsub = [];
@@ -15,7 +15,7 @@ registerPage('queue', (() => {
   function render(root) {
     const page = h('div', { class: 'page' });
     page.append(h('div', { class: 'page-head' },
-      h('div', {}, h('h1', {}, 'Hàng đợi'), h('div', { class: 'sub' }, 'GPU chạy lần lượt từng việc. Job tạo từ trang FreeVideo hay AI agent cũng hiện ở đây.')),
+      h('div', {}, h('h1', {}, 'Hàng đợi'), h('div', { class: 'sub' }, 'GPU chạy lần lượt từng việc, việc nào xong sẽ có thông báo.')),
       h('div', { class: 'grow' }),
       h('button', { class: 'btn btn-outline', onclick: () => Poller.soon(0) }, icon('refresh'), 'Làm mới')));
     const kinds = h('select', { class: 'select', style: { width: '160px' }, onchange: (e) => { kind = e.target.value; draw(App.jobs); } },
@@ -53,7 +53,7 @@ registerPage('queue', (() => {
     els.body.innerHTML = '';
     els.empty.innerHTML = '';
     if (!rows.length) {
-      els.empty.append(h('div', { class: 'empty' }, icon('inbox'), h('h3', {}, App.connected ? 'Không có job nào' : 'Chưa kết nối FreeVideo'),
+      els.empty.append(h('div', { class: 'empty' }, icon('inbox'), h('h3', {}, App.connected ? 'Không có job nào' : 'Engine chưa chạy'),
         h('div', {}, App.connected ? 'Tạo video hoặc ảnh để bắt đầu.' : errorText(App.connectionError))));
       return;
     }

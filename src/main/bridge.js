@@ -3,7 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Connection, detectRoots, findTokenRoots, normalizeUrl } = require('./freevideo');
+const { Connection, normalizeUrl } = require('./freevideo');
 const { Device } = require('./device');
 const { Engine } = require('./engine');
 const { Updater } = require('./updater');
@@ -75,22 +75,13 @@ class Bridge {
   }
 
   // Lần đầu chạy: tự dò thư mục cài đặt và cổng.
+  // Max AI chỉ nói chuyện với ENGINE CỦA CHÍNH NÓ (thư mục cài trong mục Engine & mô hình), không dò phần mềm khác trên máy.
   async autoConfigure() {
-    if (!this.settings.root && !this.settings.token) {
-      const roots = await detectRoots();
-      if (roots.length) {
-        this.settings.root = roots[0];
-        const endpoint = new Connection({ root: roots[0] }).endpointUrl();
-        if (endpoint && !this.settings.url) this.settings.url = endpoint;
-        this.save();
-      }
-    } else if (this.settings.root && this.settings.followEndpoint !== false) {
-      // FreeVideo ghi lại cổng mỗi lần khởi động; đi theo nó nếu người dùng không tự đặt URL.
-      const endpoint = this.connection.endpointUrl();
-      if (endpoint && endpoint !== this.connection.url && !this.settings.urlPinned) {
-        this.settings.url = endpoint;
-        this.save();
-      }
+    const root = this.engine.root;
+    if (root && this.settings.root !== root) {
+      this.settings.root = root;
+      delete this.settings.token;
+      this.save();
     }
   }
 
@@ -123,19 +114,6 @@ class Bridge {
         }
         this.save();
         return this.config();
-      }
-      case 'config:detect':
-        return detectRoots();
-      case 'config:pickRoot': {
-        const folder = await this.dialogs.pickFolder();
-        if (!folder) return null;
-        const roots = [...await findTokenRoots(folder, 4)];
-        if (!roots.length) return { folder, found: false };
-        this.settings.root = roots[0];
-        const endpoint = new Connection({ root: roots[0] }).endpointUrl();
-        if (endpoint && !this.settings.urlPinned) this.settings.url = endpoint;
-        this.save();
-        return { folder, found: true, root: roots[0], config: this.config() };
       }
       case 'api':
         return this.connection.request(String(args.method || 'GET').toUpperCase(), String(args.route || ''), args.body);
@@ -197,6 +175,10 @@ class Bridge {
         return wrap(() => this.engine.start());
       case 'engine:stop':
         return wrap(() => this.engine.stop());
+      case 'engine:packs':
+        return wrap(() => this.engine.packs());
+      case 'engine:pack':
+        return wrap(() => this.engine.packAction(String(args.id || ''), args.action === 'cancel' ? 'cancel' : 'install'));
       case 'engine:autostart':
         return this.engine.setAutostart(args.value);
       case 'engine:pickModels': {

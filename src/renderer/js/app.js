@@ -30,7 +30,7 @@
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', (e) => e.preventDefault());
 
-  // Trạng thái kết nối FreeVideo
+  // Trạng thái engine
   App.on('connection', ({ ok, error }) => {
     const dot = $('#conn-chip .dot');
     const text = $('#conn-chip .conn-text');
@@ -75,7 +75,7 @@
 
   startTicker();
   await refreshEngine();
-  // Lần đầu (chưa có engine, chưa nối FreeVideo nào) → mở trang cài engine.
+  // Lần đầu (chưa cài engine) → mở trang cài engine.
   navigate(App.config.hasToken || (Eng.st && Eng.st.installed) ? 'video' : 'engine');
   Poller.start();
   loadGuides();

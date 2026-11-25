@@ -8,8 +8,6 @@ contextBridge.exposeInMainWorld('fv', {
   config: {
     get: () => call('config:get'),
     set: (values) => call('config:set', values),
-    detect: () => call('config:detect'),
-    pickRoot: () => call('config:pickRoot'),
   },
   api: (method, route, body) => call('api', { method, route, body }),
   pickFiles: (kinds, multiple) => call('files:pick', { kinds, multiple }),
@@ -31,6 +29,8 @@ contextBridge.exposeInMainWorld('fv', {
     start: () => call('engine:start'),
     stop: () => call('engine:stop'),
     autostart: (value) => call('engine:autostart', { value }),
+    packs: () => call('engine:packs'),
+    pack: (id, action) => call('engine:pack', { id, action }),
   },
   update: {
     check: () => call('update:check'),

@@ -96,7 +96,7 @@ registerPage('image', (() => {
     els.tierField.classList.toggle('hidden', state.model === 'qwen-image-2.1-turbo');
     els.btn.disabled = !state.prompt.trim() || !App.connected;
     els.note.innerHTML = '';
-    if (!App.connected) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('link_off'), 'Chưa kết nối FreeVideo.'));
+    if (!App.connected) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('link_off'), 'Engine chưa chạy.'));
     else els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('info'),
       h('div', {}, state.images.length ? 'Sửa/kết hợp ' + state.images.length + ' ảnh theo mô tả.' : 'Tạo ' + state.count + ' ảnh mới từ mô tả.',
         h('div', { class: 'small-text' }, 'Ảnh chạy sau video nếu GPU đang bận.'))));

@@ -47,10 +47,10 @@ async function api(method, route, body) {
 
 function errorText(error) {
   const known = {
-    unreachable: 'Không kết nối được tới FreeVideo. Hãy mở FreeVideo (hoặc ComfyUI có cài FreeVideo) rồi thử lại.',
-    no_token: 'Chưa có token. Vào Cài đặt → chọn thư mục cài đặt FreeVideo.',
-    unauthorized: 'Token không đúng. FreeVideo có thể đã tạo token mới — vào Cài đặt và kết nối lại.',
-    not_ready: 'FreeVideo chưa sẵn sàng (đang cài đặt hoặc thiếu model).',
+    unreachable: 'Engine chưa chạy. Vào mục Engine & mô hình và bấm Bật engine.',
+    no_token: 'Engine chưa cài. Vào mục Engine & mô hình để cài.',
+    unauthorized: 'Engine vừa khởi động lại — thử lại sau vài giây.',
+    not_ready: 'Engine chưa sẵn sàng (đang cài hoặc thiếu mô hình).',
   };
   return known[error && error.code] || (error && error.message) || String(error);
 }

@@ -5,3 +5,4 @@ dev/mock_root/
 hosting/upload/
 hosting/.maxai_seed.hex
 hosting/_test/
+dev/__pycache__/
