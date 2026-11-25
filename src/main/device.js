@@ -49,6 +49,7 @@ class Device {
   async ping() {
     if (!this.server) return;
     const q = new URLSearchParams({ os: process.platform === 'darwin' ? 'mac' : 'win', v: PKG.version, m: this.machine });
+    if (this.tier) q.set('tier', this.tier());
     try { await fetch(this.server + '/v1/app/ping?' + q, { signal: AbortSignal.timeout(8000) }); } catch { /* bỏ qua */ }
   }
 

@@ -90,6 +90,19 @@
   }
   await refreshEngine();
   navigate('video');
+  // Bản quyền: chưa kích hoạt → màn hình mua/nhập key (engine & mô hình vẫn chuẩn bị ngầm để mua xong dùng ngay)
+  await loadLicense();
+  window.fv.on('license:changed', (v) => {
+    const was = Lic.view && Lic.view.ok;
+    Lic.view = v; renderLicenseChip(); App.emit('license', v);
+    if (was && v && !v.ok && v.enabled) openLicense({ required: true, reason: v.message });
+  });
+  if (!licensed() && Lic.view && Lic.view.enabled) {
+    window.fv.engine.auto();
+    await Splash.minDelay(); Splash.hide();
+    await ensureLicensed();
+    Splash.show();
+  }
   autoEngine();
   Poller.start();
   loadGuides();

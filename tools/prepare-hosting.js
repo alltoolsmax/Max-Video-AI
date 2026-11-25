@@ -25,11 +25,11 @@ if (!/^[0-9a-f]{64}$/.test(seed)) {
 }
 const pkcs8 = Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), Buffer.from(seed, 'hex')]);
 const priv = crypto.createPrivateKey({ key: pkcs8, format: 'der', type: 'pkcs8' });
-crypto.createPublicKey(priv);   // kiểm tra khóa hợp lệ
+const publicKey = crypto.createPublicKey(priv).export({ format: 'jwk' }).x;   // khóa CÔNG KHAI để phần mềm kiểm tra giấy phép
 
-// ---- địa chỉ máy chủ vào phần mềm (đếm máy, video hướng dẫn, cập nhật). Max AI miễn phí: không cần khóa công khai.
+// ---- địa chỉ máy chủ + khóa công khai vào phần mềm (bản quyền key, đếm máy, video hướng dẫn, cập nhật)
 const cfgFile = path.join(ROOT, 'src', 'main', 'server-config.json');
-fs.writeFileSync(cfgFile, JSON.stringify({ product: 'maxai', server_url: `https://${HOST}/maxai` }, null, 2) + '\n');
+fs.writeFileSync(cfgFile, JSON.stringify({ product: 'maxai', server_url: `https://${HOST}/maxai`, public_key: publicKey }, null, 2) + '\n');
 console.log('Đã ghi địa chỉ máy chủ vào ' + path.relative(ROOT, cfgFile));
 
 // ---- gói tải lên hosting: 1 file zip, giải nén ở THƯ MỤC CHÍNH của hosting (nơi có thư mục active.mrhuynh.net và active_private,

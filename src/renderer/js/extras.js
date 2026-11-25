@@ -41,6 +41,7 @@ function closeModal() {
   const bg = $('#modal');
   bg.classList.remove('open');
   bg.innerHTML = '';
+  if (typeof Lic !== 'undefined') clearInterval(Lic.poll);
 }
 const modalHead = (title, iconName, closable = true) => h('h3', {}, icon(iconName), title,
   closable ? h('button', { class: 'icon-btn x', title: 'Đóng', onclick: closeModal }, icon('close')) : null);
@@ -101,10 +102,12 @@ async function openAbout() {
       h('i', { style: { background: c.color } }, c.icon ? icon(c.icon, 'small') : c.text), c.label))),
     h('dl', { class: 'kv' },
       h('dt', {}, 'Giấy phép'), h('dd', {}, 'Miễn phí · không giới hạn'),
+      h('dt', {}, 'Bản quyền'), h('dd', {}, (typeof Lic !== 'undefined' && Lic.view && Lic.view.label) || '—'),
       h('dt', {}, 'Mã máy'), h('dd', {}, h('code', {}, info.machine)),
       h('dt', {}, 'Engine'), h('dd', {}, 'Max AI Engine · MiniMax H3 / VDN-H3')),
     h('div', { class: 'help', style: { textAlign: 'center' } }, `© ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Powered by MiniMax H3 — mô hình dùng theo giấy phép của từng nhà phát hành.`),
     h('div', { class: 'foot', style: { justifyContent: 'center' } },
+      h('button', { class: 'btn', onclick: () => openLicense() }, icon('workspace_premium'), 'Bản quyền'),
       h('button', { class: 'btn', onclick: () => openTerms() }, icon('gavel'), 'Giấy phép & điều khoản'),
       h('button', { class: 'btn', onclick: () => { closeModal(); navigate('engine'); } }, icon('memory'), 'Engine & mô hình'),
       h('button', { class: 'btn btn-primary', onclick: () => { closeModal(); checkUpdate(); } }, icon('system_update'), 'Kiểm tra cập nhật'))]);

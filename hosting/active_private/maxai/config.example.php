@@ -13,12 +13,10 @@ return [
     'telegram_chat_id' => '',
     'bank'             => null,
 
-    // Bảng giá mặc định gói Chuyên nghiệp – lấy theo Video AI (sửa tiếp trong trang quản trị › Max AI › Bảng giá)
+    // Bảng giá: 2 gói (sửa giá trong trang quản trị › Max AI › Bảng giá). Số ngày 0 = vĩnh viễn.
     'plans' => [
-        'm1' => ['name' => '1 tháng', 'days' => 30,  'price' => 80000,  'badge' => null],
-        'm3' => ['name' => '3 tháng', 'days' => 90,  'price' => 220000, 'badge' => 'Phổ biến'],
-        'm6' => ['name' => '6 tháng', 'days' => 180, 'price' => 450000, 'badge' => 'Tiết kiệm 30.000đ'],
-        'y1' => ['name' => '1 năm',   'days' => 365, 'price' => 900000, 'badge' => 'Tiết kiệm 60.000đ'],
+        'trial' => ['name' => 'TRẢI NGHIỆM', 'days' => 30, 'price' => 99000,  'badge' => null],
+        'life'  => ['name' => 'VĨNH VIỄN',   'days' => 0,  'price' => 599000, 'badge' => 'Mua 1 lần, dùng mãi mãi'],
     ],
 
     'contact_zalo'  => 'https://zalo.me/0979007367',

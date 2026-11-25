@@ -8,6 +8,7 @@ const { Device } = require('./device');
 const { Engine, legalTexts } = require('./engine');
 const { Updater } = require('./updater');
 const { Gpt, SYSTEM: AI_SYSTEM, userText: aiUserText } = require('./gpt');
+const { License } = require('./license');
 const PKG = require('../../package.json');
 
 const MEDIA_EXT = {
@@ -25,6 +26,9 @@ class Bridge {
     this.connection = new Connection(this.settings);
     this.allowedFiles = new Set(); // chỉ upload những file người dùng đã chọn qua hộp thoại
     this.device = new Device(path.dirname(settingsPath));
+    this.license = new License(path.dirname(settingsPath));
+    this.license.local();
+    this.device.tier = () => (this.license.view().ok ? 'pro' : 'free');
     this.quitApp = quit || (() => {});
     this.updater = new Updater({ device: this.device, quit, onProgress: (p) => this.emit('update:progress', p) });
     this.engine = new Engine({ settings: this.settings, save: () => this.save(), emit: (n, p) => this.onEngine(n, p) });
@@ -49,6 +53,10 @@ class Bridge {
     if (this.ready) return this.ready;
     this.ready = Promise.resolve().then(() => {
       this.engine.adoptExisting();   // cài lại app → tự nhận thư mục engine & mô hình cũ
+      // Bản quyền: kiểm tra lúc mở + mỗi 6 giờ (máy chủ cho dùng offline tối đa 3 ngày)
+      const lic = async () => { try { await this.license.startup(); } catch { /* giữ trạng thái cũ */ } this.emit('license:changed', this.license.view()); };
+      lic();
+      setInterval(lic, 6 * 3600 * 1000).unref?.();
       this.device.ping();
       setInterval(() => this.device.ping(), 30 * 60 * 1000).unref?.();
       const autoCheck = async () => {
@@ -121,6 +129,10 @@ class Bridge {
         return this.config();
       }
       case 'api':
+        // Chưa có bản quyền: chỉ được xem (GET) và ước tính (/plan), không được tạo
+        if (!this.license.view().ok && String(args.method || 'GET').toUpperCase() !== 'GET' && !/^\/(plan)(\?|$)/.test(String(args.route || ''))) {
+          return { ok: false, status: 402, error: { code: 'no_license', message: 'Cần kích hoạt bản quyền để dùng chức năng này.' } };
+        }
         return this.connection.request(String(args.method || 'GET').toUpperCase(), String(args.route || ''), args.body);
       case 'files:pick': {
         const kinds = Array.isArray(args.kinds) && args.kinds.length ? args.kinds : ['image'];
@@ -214,7 +226,20 @@ class Bridge {
         return this.gpt.setKey(args.key, args.model);
       case 'gpt:test':
         return wrap(() => this.gpt.test(args && args.key));
+      case 'license:get':
+        return this.license.view();
+      case 'license:refresh':
+        return wrap(async () => { await this.license.refresh(); return this.license.view(); });
+      case 'license:activate':
+        return wrap(async () => { const r = await this.license.activate(String(args.key || '')); this.emit('license:changed', this.license.view()); return { ...this.license.view(), renewed: r.renewed, added_days: r.added_days }; });
+      case 'license:plans':
+        return wrap(() => this.license.plans());
+      case 'license:order':
+        return wrap(() => this.license.order(String(args.plan || '')));
+      case 'license:orderStatus':
+        return wrap(() => this.license.orderStatus(String(args.code || '')));
       case 'gpt:run':
+        if (!this.license.view().ok) return { ok: false, error: { code: 'no_license', message: 'Cần kích hoạt bản quyền để dùng chức năng này.' } };
         return wrap(() => this.gpt.run(String(args.task || ''), args.input || {}));
       case 'engine:auto':
         return this.engine.auto();

@@ -2,7 +2,7 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 const call = (channel, args) => ipcRenderer.invoke('bridge', channel, args);
-const EVENTS = ['update:progress', 'update:available', 'engine:status'];
+const EVENTS = ['update:progress', 'update:available', 'engine:status', 'license:changed'];
 
 contextBridge.exposeInMainWorld('fv', {
   config: {
@@ -22,6 +22,14 @@ contextBridge.exposeInMainWorld('fv', {
   deleteLibrary: (ids) => call('library:delete', { ids }),
   quit: () => call('app:quit'),
   guides: () => call('guides'),
+  license: {
+    get: () => call('license:get'),
+    refresh: () => call('license:refresh'),
+    activate: (key) => call('license:activate', { key }),
+    plans: () => call('license:plans'),
+    order: (plan) => call('license:order', { plan }),
+    orderStatus: (code) => call('license:orderStatus', { code }),
+  },
   gpt: {
     info: () => call('gpt:info'),
     set: (key, model) => call('gpt:set', { key, model }),

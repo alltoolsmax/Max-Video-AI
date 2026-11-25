@@ -130,6 +130,15 @@ function db(): PDO
         version TEXT NOT NULL, url TEXT, sha256 TEXT, size INTEGER, notes TEXT, created_at INTEGER NOT NULL)');
     $pdo->exec('CREATE TABLE IF NOT EXISTS rate (k TEXT NOT NULL, ts INTEGER NOT NULL)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS rate_k ON rate(k, ts)');
+    // Bảng giá v2 (Max Video AI 1.5): chỉ 2 gói TRẢI NGHIỆM (30 ngày) và VĨNH VIỄN (mua 1 lần). Chạy 1 lần, sau đó sửa giá ở trang quản trị.
+    if (!(int)$pdo->query("SELECT COUNT(*) FROM counters WHERE k='plans_v2'")->fetchColumn()) {
+        $pdo->exec('UPDATE plans SET active=0');
+        $up = $pdo->prepare('INSERT INTO plans (code, name, days, price, sort, badge, active) VALUES (?,?,?,?,?,?,1)
+            ON CONFLICT(code) DO UPDATE SET name=excluded.name, days=excluded.days, price=excluded.price, sort=excluded.sort, badge=excluded.badge, active=1');
+        $up->execute(['trial', 'TRẢI NGHIỆM', 30, 99000, 1, null]);
+        $up->execute(['life', 'VĨNH VIỄN', 0, 599000, 2, 'Mua 1 lần, dùng mãi mãi']);
+        $pdo->exec("INSERT OR REPLACE INTO counters (k, n) VALUES ('plans_v2', 1)");
+    }
     if ((int)$pdo->query('SELECT COUNT(*) FROM plans')->fetchColumn() === 0) {
         $i = 0;
         $st = $pdo->prepare('INSERT INTO plans (code, name, days, price, sort, badge) VALUES (?,?,?,?,?,?)');
