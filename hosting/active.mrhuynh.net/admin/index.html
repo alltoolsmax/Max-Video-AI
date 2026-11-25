@@ -56,7 +56,7 @@ const TABS={video:[['stats','Tổng quan'],['installs','Máy đã cài'],['keys'
  voice:[['v_stats','Tổng quan'],['v_installs','Máy đã cài'],['v_plans_edit','Bảng giá'],['v_capkey','Cấp key thủ công'],['v_orders','Đơn hàng'],['v_transactions','Giao dịch SePay'],['v_release','Phát hành & cập nhật']],
  gcloud:[['g_stats','Tổng quan'],['g_releases','Phát hành & cập nhật'],['g_events','Nhật ký']],
  maxai:[['m_overview','Tổng quan'],['installs','Máy đã cài'],['guides','Video hướng dẫn'],['m_release','Cập nhật phần mềm'],['events','Nhật ký']]};
-const MAX_GUIDE_PAGES=[['engine','Engine & mô hình (cài, tải mô hình)'],['video','Tạo video'],['image','Tạo ảnh'],['queue','Hàng đợi'],['library','Thư viện'],['settings','Cài đặt']];
+const MAX_GUIDE_PAGES=[['engine','Engine & mô hình (cài, tải mô hình)'],['video','Tạo video'],['image','Tạo ảnh'],['edit','Sửa ảnh'],['cast','Nhân vật'],['autopilot','Autopilot'],['dubbing','Lồng tiếng'],['subtitles','Phụ đề'],['queue','Hàng đợi'],['library','Thư viện'],['settings','Cài đặt']];
 const GP=()=>PROD=='maxai'?MAX_GUIDE_PAGES:GUIDE_PAGES;
 const GUIDE_PAGES=[['flow_image','Tạo ảnh Flow'],['flow_video','Tạo Video Flow'],['gpt_image','Tạo ảnh GPT'],['grok_image','Tạo ảnh Grok'],['muse_image','Tạo ảnh Muse'],['dreamina','Tạo Video Dreamina'],['meta_muse','Tạo Video Muse'],['meta_vibes','Tạo Video Meta Vibes'],['grok_video','Tạo Video Grok'],['refs','Kho ảnh tham chiếu'],['workflow','Workflow'],['upscale','Nâng Cấp Ảnh'],['video_tools','Công Cụ Video'],['logs','Log Chi Tiết']];
 let cur='stats',PLANS=[];
