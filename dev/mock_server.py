@@ -317,7 +317,12 @@ class Handler(BaseHTTPRequestHandler):
                 if c.get('generating') and time.time() > c['_ready']:
                     c['images'] = c['images'] + [dict(media=copy_image(), by='builtin', label='front', generated=True)]
                     c['generating'] = None
-            return 200, dict(cards=list(CAST.values()), total=len(CAST))
+            def row(c):
+                pick = next((i for i in c['images'] if i['label'] in ('face', 'front')), c['images'][0] if c['images'] else None)
+                return dict(id=c['id'], kind=c['kind'], name=c['name'], description=c['description'], origin='agent', revision=c['revision'],
+                            images=len(c['images']), voice=c.get('voice') is not None, generating=c.get('generating') is not None,
+                            thumbnail=pick['media'] if pick else None)
+            return 200, dict(cards=[row(c) for c in CAST.values()], total=len(CAST))
         if route == '/cast' and method == 'POST':
             cid = 'c' + uuid.uuid4().hex[:12]
             card = dict(id=cid, kind=value.get('kind', 'character'), name=value['name'], description=value.get('description'), revision=1,
@@ -339,7 +344,7 @@ class Handler(BaseHTTPRequestHandler):
                 if 'images' in value:
                     card['images'] = [dict(media=dict(file=i['media']['file'], url=PREFIX + '/media/input/' + i['media']['file'] + '/file'), by='user', label=i.get('label', 'other')) for i in value['images']]
                 return 200, dict(card=card)
-            return 200, dict(card=card)
+            return 200, card
         if route == '/media/edit':
             made = copy_image()
             return 201, dict(made, view=made, width=1024, height=1024, document={})

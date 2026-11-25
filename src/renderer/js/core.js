@@ -71,6 +71,8 @@ const brandText = (t) => String(t || '').replace(/FreeVideo/g, 'Max AI Engine');
 function errorText(error) {
   const code = error && error.code;
   if (code && ERROR_VI[code]) return ERROR_VI[code];
+  const detail = JSON.stringify((error && error.details) || '') + ' ' + ((error && error.message) || '');
+  if (/front picture/i.test(detail)) return 'Thẻ nhân vật chưa có ảnh chính diện. Vào trang Nhân vật → bấm "AI vẽ", hoặc thêm ảnh và chọn góc "Chính diện".';
   if (code === 'invalid_request' && /picture/i.test((error && error.message) || '')) {
     return 'Yêu cầu tạo ảnh không hợp lệ. Nếu có chọn nhân vật: cần gói "Tạo ảnh nhanh" (Qwen Image) và thẻ nhân vật phải có ảnh chính diện.';
   }

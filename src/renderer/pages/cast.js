@@ -9,10 +9,15 @@ async function loadCast() {
   const r = await api('GET', '/cast?limit=200');
   return r.cards || r.items || [];
 }
+// Danh sách của engine chỉ có số ảnh (images: số) và 1 ảnh đại diện (thumbnail); thẻ đầy đủ (GET /cast/{id}) mới có mảng ảnh.
 const castPicture = (card) => {
-  const img = (card.images || [])[0] || (card.candidates || [])[0];
+  if (card.thumbnail && card.thumbnail.url) return card.thumbnail.url;
+  const list = Array.isArray(card.images) ? card.images : [];
+  const img = list.find((i) => i.label === 'face') || list.find((i) => i.label === 'front') || list[0] || (Array.isArray(card.candidates) ? card.candidates[0] : null);
   return img && img.media ? img.media.url : null;
 };
+const castImageCount = (card) => (Array.isArray(card.images) ? card.images.length : Number(card.images) || 0);
+async function castCard(id) { const r = await api('GET', '/cast/' + id); return r.card || r; }
 
 registerPage('cast', (() => {
   let els = {}, cards = [], filter = 'all', timer = null;
@@ -57,7 +62,7 @@ registerPage('cast', (() => {
         h('div', { class: 'pic', onclick: () => openEditor(c) }, pic ? h('img', { src: mediaUrl(pic), alt: '' }) : icon(kindIcon, 'big'),
           c.generating ? h('div', { class: 'busy' }, icon('progress_activity', 'spin'), 'AI đang vẽ…') : null,
           h('span', { class: 'kind' }, kindLabel)),
-        h('div', { class: 'meta' }, h('b', {}, c.name), h('div', { class: 'small-text muted clamp2' }, c.description || ((c.images || []).length + ' ảnh tham chiếu')),
+        h('div', { class: 'meta' }, h('b', {}, c.name), h('div', { class: 'small-text muted clamp2' }, c.description || (castImageCount(c) + ' ảnh tham chiếu')),
           c.voice ? h('span', { class: 'pill', style: { marginTop: '6px' } }, icon('graphic_eq', 'small'), 'Có giọng') : null),
         h('div', { class: 'acts' },
           h('button', { class: 'btn btn-text', onclick: () => openEditor(c) }, icon('edit'), 'Sửa'),
@@ -67,7 +72,7 @@ registerPage('cast', (() => {
   }
 
   async function generate(c, replace = false) {
-    if (!c.description && !(c.images || []).length) { toast('Hãy thêm mô tả trước để AI biết vẽ gì', { kind: 'err' }); return; }
+    if (!c.description && !castImageCount(c)) { toast('Hãy thêm mô tả trước để AI biết vẽ gì', { kind: 'err' }); return; }
     try {
       await api('POST', '/cast/' + c.id + '/generate', { face: c.kind === 'character', replace, revision: c.revision });
       toast('AI đang vẽ ảnh tham chiếu cho ' + c.name, { kind: 'ok', sub: 'Chạy trên GPU, mất khoảng 1–3 phút.' });
@@ -75,9 +80,13 @@ registerPage('cast', (() => {
     } catch (e) { toastError(e, 'Không vẽ được'); }
   }
 
-  function openEditor(card) {
+  async function openEditor(row) {
+    let card = row;
+    if (row && !Array.isArray(row.images)) {
+      try { card = await castCard(row.id); } catch (e) { toastError(e, 'Không mở được thẻ'); return; }
+    }
     const v = { kind: card ? card.kind : 'character', name: card ? card.name : '', description: card ? card.description || '' : '',
-      images: card ? (card.images || []).map((i) => ({ file: i.media.file, url: i.media.url, kind: 'image', label: i.label || 'other' })) : [],
+      images: card ? (card.images || []).map((i) => ({ file: i.media.file, url: i.media.url, kind: 'image', label: i.label || 'other', name: (CAST_LABELS.find(([v]) => v === i.label) || [0, 'Ảnh'])[1] })) : [],
       voice: card && card.voice && card.voice.media ? { file: card.voice.media.file, url: card.voice.media.url, kind: 'audio', name: 'Giọng mẫu' } : null };
     const slots = h('div', { class: 'slots' });
     const drawSlots = () => {
@@ -94,6 +103,7 @@ registerPage('cast', (() => {
     const desc = h('textarea', { class: 'textarea', maxlength: 1000, placeholder: 'Ví dụ: Vietnamese woman, 25, long black hair, white áo dài, gentle smile.', oninput: (e) => { v.description = e.target.value; } });
     desc.value = v.description;
     const voice = mediaSlot({ title: 'Giọng mẫu', desc: 'File ghi âm 5–15 giây (không bắt buộc)', kinds: ['audio', 'video'], iconName: 'mic', value: v.voice, onChange: (x) => { v.voice = x; } });
+    voice.style.maxWidth = '260px';
     const save = h('button', { class: 'btn btn-primary', onclick: async () => {
       if (!v.name.trim()) { toast('Hãy đặt tên', { kind: 'err' }); return; }
       save.disabled = true;

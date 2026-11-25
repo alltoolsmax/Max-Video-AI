@@ -133,7 +133,7 @@ registerPage('image', (() => {
   function drawPeople() {
     els.people.innerHTML = '';
     const full = state.people.length >= 3;
-    const hasFront = (c) => (c.images || []).some((i) => i.label === 'front');
+    const hasFront = (c) => castImageCount(c) > 0;   // engine tự kiểm tra ảnh chính diện khi gửi
     // 1) Người đã chọn + ô thêm ảnh người
     const picked = h('div', { class: 'slots' });
     state.people.forEach((p, i) => {
@@ -161,7 +161,7 @@ registerPage('image', (() => {
         const on = state.people.some((p) => p.cast === c.id);
         if (!hasFront(c)) {
           return h('button', { class: 'cast-chip', type: 'button', style: { opacity: .55 }, title: 'Thẻ này chưa có ảnh chính diện',
-            onclick: () => toast('Thẻ "' + c.name + '" chưa có ảnh chính diện', { kind: 'err', sub: 'Vào trang Nhân vật → bấm "AI vẽ" hoặc thêm ảnh, đặt góc "Chính diện".',
+            onclick: () => toast('Thẻ "' + c.name + '" chưa có ảnh', { kind: 'err', sub: 'Vào trang Nhân vật → bấm "AI vẽ" hoặc thêm ảnh, đặt góc "Chính diện".',
               action: { label: 'Mở Nhân vật', run: () => navigate('cast') } }) },
             castPicture(c) ? h('img', { src: mediaUrl(castPicture(c)), alt: '' }) : icon('person'), h('span', {}, c.name + ' · chưa có ảnh'));
         }
