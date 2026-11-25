@@ -29,7 +29,8 @@ LOCK = threading.Lock()
 JOBS = {}       # id -> row
 ORDER = []      # mới nhất trước
 LIBRARY = []    # mới nhất trước
-PACKS = {'image-h3': 'missing', 'vlm': 'missing'}   # gói mô hình giả lập
+PACKS = {'image-h3': 'missing', 'vlm': 'missing'}
+PVLM = {}   # lượt viết prompt trực tiếp (giả lập)   # gói mô hình giả lập
 CAST = {}       # id -> card
 PROJECTS = {}   # id -> project
 IMPORTS = {}    # id -> import
@@ -526,6 +527,42 @@ class Handler(BaseHTTPRequestHandler):
             gone = [i for i in body.get('ids', []) if any(x['id'] == i for x in LIBRARY)]
             LIBRARY[:] = [x for x in LIBRARY if x['id'] not in gone]
             return self.send_json(200, dict(batch='b1', undo_seconds=10, deleted=gone, skipped=[]))
+        if path in ('/freevideo/prompt-vlm/rewrite', '/freevideo/prompt-vlm/ask', '/freevideo/prompt-vlm/status', '/freevideo/prompt-vlm/install', '/freevideo/prompt-vlm/cancel'):
+            body = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
+            if self.headers.get('X-FreeVideo-Prompt') != 't':
+                return self.send_json(403, dict(error='reload'))
+            action = path.rsplit('/', 1)[1]
+            if action == 'install':
+                PACKS['vlm'] = 'ready'; PVLM.update(job='inst', at=time.time(), row=dict(phase='complete')); return self.send_json(200, dict(job='inst'))
+            if action == 'status':
+                if body.get('job') != PVLM.get('job'):
+                    return self.send_json(400, dict(error='unknown_job'))
+                if time.time() - PVLM['at'] < 1.5:
+                    return self.send_json(200, dict(phase='rewriting'))
+                return self.send_json(200, PVLM['row'])
+            if action == 'cancel':
+                return self.send_json(200, dict(phase='cancelling'))
+            if PACKS['vlm'] != 'ready':
+                return self.send_json(400, dict(error='model_missing'))
+            if any(j.get('status') in ('queued', 'running') and j.get('kind') == 'generate' for j in JOBS.values()) and not PVLM.get('busy_once'):
+                PVLM['busy_once'] = True
+                return self.send_json(400, dict(error='busy'))
+            if action == 'rewrite':
+                text = body.get('text', '')
+                if body.get('target') == 'image':
+                    row = dict(phase='complete', text='A highly detailed photograph: ' + text + ', soft natural light, 85mm lens, shallow depth of field.')
+                else:
+                    row = dict(phase='complete', text='integrated_multimodal_description:\n[Shot 1] ' + text + ', cinematic dolly shot, golden hour light.\noverall_soundscape: gentle ambience.')
+            else:
+                q = body['questions'][0]['text']
+                if '"title"' in (body.get('system') or ''):
+                    ans = json.dumps(dict(title='Phim thử', style='cinematic', shots=[dict(action='Lan waits at the bus stop in the rain', seconds=8, camera='wide', cast=['Lan'], lines=[]),
+                                                                                        dict(action='Minh arrives with an umbrella', seconds=8, camera='medium', cast=['Lan', 'Minh'], lines=[dict(who='Minh', text='Chào em')])]))
+                else:
+                    ans = json.dumps(dict(lines=['Scene %d: a quiet street in Hoi An, lanterns glowing, slow dolly.' % (i + 1) for i in range(3)]))
+                row = dict(phase='complete', answers=[dict(text=ans, tokens=50, seconds=1.0)])
+            PVLM.update(job='j%d' % int(time.time() * 1000), at=time.time(), row=row)
+            return self.send_json(200, dict(job=PVLM['job']))
         if path.startswith('/freevideo/') and not path.startswith(PREFIX):
             self.rfile.read(int(self.headers.get('Content-Length') or 0))
         if path == '/freevideo/image-gen/pack-install':

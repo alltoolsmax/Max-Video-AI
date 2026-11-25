@@ -148,7 +148,7 @@ registerPage('autopilot', (() => {
     };
     drawShots();
     left.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('view_carousel'), h('h2', {}, 'Các cảnh'), h('span', { class: 'hint' }, 'mỗi cảnh 4–15 giây'),
-      h('div', { class: 'grow' }), LocalAI.button('Viết kịch bản bằng AI trên máy', () => scriptWith(LocalAI), 'memory'), GPT.button('Viết kịch bản bằng ChatGPT', () => scriptWith(GPT), 'movie_edit')),
+      h('div', { class: 'grow' }), aiWriterRow([{ label: 'Viết kịch bản', icon: 'movie_edit', run: (engine) => scriptWith(engine) }])),
       h('div', { class: 'card-body' }, shotsBox)));
 
     // Cột phải: số bản, ước tính, bắt đầu

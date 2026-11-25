@@ -68,7 +68,7 @@ async function openLicense({ required = false, reason = '' } = {}) {
       machineBox(v)));
   } else {
     body.append(h('div', { class: 'lic-hero' }, h('img', { src: '../../assets/icon.png', alt: '' }),
-      h('div', {}, h('b', {}, 'Chọn gói để bắt đầu'), h('small', {}, 'Thanh toán bằng QR ngân hàng — phần mềm tự kích hoạt ngay khi nhận tiền. Trong lúc chờ, engine & mô hình AI vẫn được chuẩn bị ngầm.')),
+      h('div', {}, h('b', {}, 'Chọn gói để bắt đầu'), h('small', {}, 'Quét QR ngân hàng — tự kích hoạt ngay khi nhận tiền. Engine & mô hình AI vẫn được chuẩn bị ngầm.')),
       machineBox(v)));
   }
 
@@ -77,9 +77,7 @@ async function openLicense({ required = false, reason = '' } = {}) {
   if (!v.lifetime) body.append(plansBox);
   body.append(h('div', {}, h('div', { class: 'label' }, v.ok ? 'Gia hạn / nâng cấp bằng key khác' : 'Đã có key? Nhập vào đây'),
     h('div', { class: 'row' }, h('div', { style: { flex: 1 } }, keyInput), actBtn)));
-  body.append(h('div', { class: 'feature-list' },
-    ['Tạo video, ảnh không giới hạn — chạy trên máy bạn', 'Sửa ảnh, Kho ảnh tham chiếu, Autopilot', 'Lồng tiếng giữ giọng gốc, Phụ đề tự động',
-      'Nhận mọi bản cập nhật & tính năng mới', '1 key cho 1 máy, tự chuyển máy 30 ngày/lần', 'Hỗ trợ trực tiếp qua Zalo 0979 007 367'].map((t) => h('div', {}, icon('check_circle', 'fill'), t))));
+  body.append(h('div', { class: 'lic-note' }, icon('verified_user', 'small'), '1 key cho 1 máy · tự chuyển máy 30 ngày/lần · hỗ trợ trực tiếp qua Zalo 0979 007 367'));
   if (required) {
     body.append(h('div', { class: 'row', style: { justifyContent: 'space-between' } },
       h('button', { class: 'btn btn-text', onclick: async () => { const r = await window.fv.license.refresh(); if (r.ok) { Lic.view = r.data; renderLicenseChip(); App.emit('license', Lic.view); if (!r.data.ok) toast(r.data.message || 'Chưa có bản quyền', { kind: 'err' }); } else toast(r.error.message, { kind: 'err' }); } }, icon('refresh'), 'Kiểm tra lại'),
@@ -97,15 +95,21 @@ async function openLicense({ required = false, reason = '' } = {}) {
   }
   const grid = h('div', { class: 'plans two' });
   const contact = data.contact || {};
-  for (const p of data.plans) {
+  const FEATURES = ['Đầy đủ tất cả tính năng', 'Được cập nhật tính năng mới', 'Tạo video, ảnh không giới hạn trên máy bạn'];
+  // Gói vĩnh viễn luôn đứng sau (bên phải) và được làm nổi bật
+  const plans = [...data.plans].sort((a, b) => (Number(a.days) === 0) - (Number(b.days) === 0));
+  for (const p of plans) {
     const life = Number(p.days) === 0;
-    grid.append(h('div', { class: 'plan big' + (life ? ' sel' : '') },
-      p.badge ? h('span', { class: 'ribbon' }, p.badge) : null,
-      h('b', {}, p.name), h('span', { class: 'price' }, fmtVnd(p.price)),
-      h('span', { class: 'per' }, life ? 'Mua 1 lần · dùng vĩnh viễn' : 'Dùng ' + p.days + ' ngày'),
+    const feats = life ? [...FEATURES, 'Mua 1 lần — dùng mãi mãi, không gia hạn'] : [...FEATURES, 'Dùng ' + p.days + ' ngày, gia hạn khi cần'];
+    grid.append(h('div', { class: 'plan big' + (life ? ' hot' : '') },
+      h('span', { class: 'ribbon' }, life ? (p.badge || 'Mua 1 lần, dùng mãi mãi') : 'Dùng thử đầy đủ'),
+      h('div', { class: 'plan-top' }, life ? icon('workspace_premium', 'fill') : icon('rocket_launch'), h('b', {}, p.name)),
+      h('span', { class: 'price' }, fmtVnd(p.price)),
+      h('span', { class: 'per' }, life ? 'thanh toán 1 lần duy nhất' : '/ ' + (Number(p.days) === 30 ? '1 tháng' : p.days + ' ngày')),
+      h('ul', { class: 'plan-feats' }, feats.map((t) => h('li', {}, icon('check_circle', 'fill small'), t))),
       h('div', { class: 'acts' },
-        data.payment ? h('button', { class: 'btn btn-primary', onclick: () => buyQR(p) }, icon('qr_code_2'), 'Mua ngay') : null,
-        h('button', { class: 'btn btn-text', onclick: () => buyViaZalo(p, contact) }, icon('chat'), 'Mua qua Zalo'))));
+        data.payment ? h('button', { class: 'btn ' + (life ? 'btn-primary' : 'btn-outline'), onclick: () => buyQR(p) }, icon('qr_code_2'), 'Mua ngay') : null,
+        h('button', { class: 'btn btn-text', onclick: () => buyViaZalo(p, contact) }, icon('chat'), 'Qua Zalo'))));
   }
   plansBox.append(h('div', { class: 'label' }, v.ok ? 'Mua thêm / nâng cấp' : 'Chọn gói'), grid);
 }
@@ -127,19 +131,21 @@ async function buyQR(plan) {
   const r = await window.fv.license.order(plan.code);
   if (!r.ok) { toast(r.error.message, { kind: 'err' }); return; }
   const o = r.data;
-  const status = h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('progress_activity', 'spin'), h('div', {}, 'Đang chờ chuyển khoản… phần mềm tự kích hoạt ngay khi nhận được tiền.'));
-  openModal([modalHead('Thanh toán gói ' + plan.name, 'qr_code_2', !required),
-    h('div', { class: 'qr-box' }, o.qr_url ? h('img', { src: o.qr_url, alt: 'VietQR' }) : null,
-      h('dl', { class: 'kv' },
-        h('dt', {}, 'Ngân hàng'), h('dd', {}, o.bank.id),
-        h('dt', {}, 'Số tài khoản'), h('dd', {}, o.bank.account, ' ', h('button', { class: 'icon-btn', style: { display: 'inline-grid', width: '24px', height: '24px' }, onclick: () => copyText(o.bank.account) }, icon('content_copy', 'small'))),
-        h('dt', {}, 'Chủ tài khoản'), h('dd', {}, o.bank.name),
-        h('dt', {}, 'Số tiền'), h('dd', {}, h('b', { style: { fontSize: '18px' } }, fmtVnd(o.amount))),
-        h('dt', {}, 'Nội dung CK'), h('dd', {}, h('b', { style: { fontSize: '16px', letterSpacing: '1px' } }, o.content), ' ', h('button', { class: 'icon-btn', style: { display: 'inline-grid', width: '24px', height: '24px' }, onclick: () => copyText(o.content) }, icon('content_copy', 'small'))),
-        h('dt', {}, 'Hết hạn sau'), h('dd', {}, Math.round(o.expires_in / 60) + ' phút'))),
-    h('div', { class: 'help', style: { marginTop: 0 } }, 'Quét mã bằng app ngân hàng bất kỳ. Giữ đúng nội dung chuyển khoản để hệ thống nhận diện tự động.'),
+  const status = h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('progress_activity', 'spin'), h('div', {}, 'Đang chờ chuyển khoản… tự kích hoạt ngay khi nhận tiền.'));
+  const copyBtn = (text) => h('button', { class: 'icon-btn', title: 'Chép', onclick: () => copyText(text) }, icon('content_copy', 'small'));
+  const box = openModal([modalHead('Thanh toán gói ' + plan.name, 'qr_code_2', !required),
+    h('div', { class: 'pay' },
+      o.qr_url ? h('div', { class: 'pay-qr' }, h('img', { src: o.qr_url, alt: 'Mã QR chuyển khoản' })) : null,
+      h('div', { class: 'pay-amount' }, fmtVnd(o.amount)),
+      h('div', { class: 'pay-rows' },
+        o.bank.id ? h('div', {}, h('span', {}, 'Ngân hàng'), h('b', {}, o.bank.id)) : null,
+        h('div', {}, h('span', {}, 'Số tài khoản'), h('b', {}, o.bank.account, copyBtn(o.bank.account))),
+        o.bank.name ? h('div', {}, h('span', {}, 'Chủ tài khoản'), h('b', {}, o.bank.name)) : null),
+      h('div', { class: 'pay-code' }, h('span', {}, 'Nội dung chuyển khoản'), h('b', {}, o.content), copyBtn(o.content)),
+      h('div', { class: 'pay-help' }, 'Quét bằng app ngân hàng bất kỳ · giữ đúng nội dung CK · hết hạn sau ' + Math.round(o.expires_in / 60) + ' phút')),
     status,
-    h('div', { class: 'foot' }, h('button', { class: 'btn', onclick: () => { clearInterval(Lic.poll); openLicense({ required }); } }, icon('arrow_back'), 'Chọn gói khác'))], { wide: true, locked: required });
+    h('div', { class: 'foot', style: { justifyContent: 'center' } }, h('button', { class: 'btn btn-text', onclick: () => { clearInterval(Lic.poll); openLicense({ required }); } }, icon('arrow_back'), 'Chọn gói khác'))], { locked: required });
+  box.classList.add('pay-modal');
   clearInterval(Lic.poll);
   Lic.poll = setInterval(async () => {
     const s = await window.fv.license.orderStatus(o.code);

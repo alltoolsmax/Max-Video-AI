@@ -40,12 +40,12 @@ registerPage('image', (() => {
     left.append(h('div', { class: 'card' },
       h('div', { class: 'card-head' }, h('h2', {}, 'Mô tả ảnh')),
       h('div', { class: 'card-body' }, field(null, h('div', {}, prompt, counter), 'Viết tiếng Anh cho kết quả tốt nhất. Chữ muốn hiện trong ảnh đặt trong ngoặc kép.'),
-        aiWriterRow([{ label: 'Viết lại', icon: 'auto_awesome', run: async (engine, btn) => {
+        aiWriterRow([{ label: 'AI sửa Prompt', icon: 'auto_fix_high', run: async (engine, btn) => {
           if (!state.prompt.trim()) { toast('Hãy viết vài ý tưởng trước', { kind: 'err' }); return; }
-          const r = await engine.run('image', { text: state.prompt }, btn);
+          const r = await engine.run('image', { text: state.prompt, model: state.model }, btn);
           if (!r || !r.prompt) return;
           state.prompt = LocalAI.oneLine(r.prompt).slice(0, 2000); prompt.value = state.prompt; counter.textContent = state.prompt.length + ' / 2000'; update();
-          toast((engine === GPT ? 'ChatGPT' : 'AI trên máy') + ' đã viết lại mô tả', { kind: 'ok' });
+          toast((engine === GPT ? 'ChatGPT' : 'AI trên máy') + ' đã sửa prompt trong khung', { kind: 'ok' });
         } }]),
         field('Gợi ý nhanh', ideas))));
 

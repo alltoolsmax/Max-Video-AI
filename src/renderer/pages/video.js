@@ -97,7 +97,7 @@ registerPage('video', (() => {
         h('span', { class: 'hint' }, 'không bắt buộc'), h('div', { class: 'grow' }), icon('expand_more', 'chev')),
       h('div', { class: 'card-body' },
         field('Khung hình', slots, 'Đặt ảnh đầu và/hoặc cuối để kiểm soát chính xác bố cục. Có thể tạo ảnh ở trang Tạo ảnh rồi dùng ở đây.'),
-        field('Tham chiếu (ảnh, video, âm thanh)', els.refs, 'Dùng để giữ nhân vật, phong cách hoặc giọng nói. Tính năng thử nghiệm — prompt nên viết ở chế độ đầy đủ hoặc bấm "Viết lại bằng AI".'))));
+        field('Tham chiếu (ảnh, video, âm thanh)', els.refs, 'Dùng để giữ nhân vật, phong cách hoặc giọng nói. Tính năng thử nghiệm — prompt nên viết ở chế độ đầy đủ hoặc bấm "AI sửa Prompt".'))));
 
     /* Cài đặt */
     els.duration = slider({ min: 2, max: maxSeconds, step: 1, value: Math.min(state.seconds, maxSeconds), suffix: 'giây', onChange: (v) => { state.seconds = v; setPref('videoSeconds', v); schedulePlan(); } });
@@ -167,7 +167,7 @@ registerPage('video', (() => {
       ta.value = state.text; countLines(); schedulePlan();
     } }, icon('lightbulb', 'small'), idea.label)));
     body.append(field(null, ta, 'Viết tiếng Anh cho kết quả tốt nhất; lời thoại có thể để tiếng Việt trong ngoặc kép. Dán nhiều dòng để tạo hàng loạt.'),
-      aiWriterRow([{ label: 'Viết lại', icon: 'auto_awesome', run: rewriteWith }, { label: 'Viết kịch bản', icon: 'movie_edit', run: (engine) => scriptWith(engine) }]),
+      aiWriterRow([{ label: 'AI sửa Prompt', icon: 'auto_fix_high', run: rewriteWith }, { label: 'Viết kịch bản', icon: 'movie_edit', run: (engine) => scriptWith(engine) }]),
       field('Gợi ý nhanh', ideas));
     countLines();
     setTimeout(() => ta.focus(), 0);
@@ -182,12 +182,12 @@ registerPage('video', (() => {
   const who = (engine) => (engine === GPT ? 'ChatGPT' : 'AI trên máy');
   async function rewriteWith(engine, btn) {
     const lines = promptLines();
-    if (!lines.length) { toast('Hãy viết vài ý tưởng trước (mỗi dòng 1 video), AI sẽ viết lại chi tiết', { kind: 'err' }); return; }
+    if (!lines.length) { toast('Hãy viết vài ý tưởng trước (mỗi dòng 1 video), AI sẽ sửa thành prompt chi tiết', { kind: 'err' }); return; }
     const r = await engine.run('video', { lines, seconds: Number(state.seconds) }, btn);
     if (!r || !Array.isArray(r.lines)) return;
     state.text = r.lines.map((l) => String(l).replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).join('\n');
     renderPromptBody(); schedulePlan();
-    toast(who(engine) + ' đã viết lại ' + r.lines.length + ' prompt — sửa thêm nếu muốn rồi bấm Tạo', { kind: 'ok' });
+    toast(who(engine) + ' đã sửa ' + r.lines.length + ' prompt trong khung — xem lại rồi bấm Tạo', { kind: 'ok' });
   }
   function scriptWith(engine) {
     const idea = h('textarea', { class: 'textarea', rows: 4, placeholder: 'Ví dụ: Một cô gái bán cà phê ở Hội An gặp lại người bạn cũ dưới mưa, kết thúc ấm áp.' });

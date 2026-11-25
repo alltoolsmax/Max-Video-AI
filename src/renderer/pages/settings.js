@@ -12,7 +12,7 @@ registerPage('settings', (() => {
 
     els.gpt = h('div', { class: 'card-body' });
     page.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, icon('bolt'), h('h2', {}, 'ChatGPT'), els.gptPill = h('span'),
-      h('span', { class: 'hint' }, 'viết lại prompt, viết kịch bản, sửa / dịch prompt')), els.gpt));
+      h('span', { class: 'hint' }, 'AI sửa Prompt, viết kịch bản — chọn ChatGPT ở thanh chọn AI')), els.gpt));
     drawGpt();
 
     els.machine = h('div', { class: 'card-body' });

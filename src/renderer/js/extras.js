@@ -15,7 +15,7 @@ const APP_INFO = {
     { icon: 'movie', text: 'Tạo video có âm thanh từ mô tả — chạy MiniMax H3 ngay trên card đồ họa của bạn' },
     { icon: 'download', text: 'Tự tải mô hình và cài engine chỉ với một nút bấm — không cần cài thêm gì' },
     { icon: 'image', text: 'Tạo ảnh tới 16 MP, rồi biến ảnh thành video chỉ với một cú nhấp' },
-    { icon: 'auto_awesome', text: 'Viết lại bằng ChatGPT — biến ý tưởng ngắn thành prompt điện ảnh chi tiết' },
+    { icon: 'auto_awesome', text: 'AI sửa Prompt — biến ý tưởng ngắn thành prompt điện ảnh chi tiết, chạy ngay trên máy' },
     { icon: 'timer', text: 'Biết trước thời gian tạo trên đúng máy của bạn trước khi bấm Tạo' },
     { icon: 'fast_forward', text: 'Làm tiếp video có sẵn, tạo video dài tới 60 giây' },
     { icon: 'shield', text: 'Mọi thứ chạy trên máy bạn — không tải ảnh, video lên dịch vụ nào' },
@@ -93,24 +93,26 @@ async function checkUpdate({ silent = false, info = null } = {}) {
 /* ---------- Thông tin ứng dụng ---------- */
 async function openAbout() {
   const info = await window.fv.app();
-  openModal([
-    h('button', { class: 'icon-btn x', style: { position: 'absolute', right: '14px', top: '14px' }, onclick: closeModal }, icon('close')),
-    h('div', { class: 'about-head' }, h('img', { src: '../../assets/icon.png', alt: '' }),
-      h('h2', {}, 'Max Video AI ', h('span', { class: 'muted', style: { fontSize: '15px' } }, 'by Mr. Huỳnh')),
-      h('span', { class: 'ver' }, 'Phiên bản ' + info.version), h('p', {}, APP_INFO.slogan)),
+  const lv = (typeof Lic !== 'undefined' && Lic.view) || null;
+  const box = openModal([
+    h('div', { class: 'about-top' },
+      h('img', { src: '../../assets/icon.png', alt: '' }),
+      h('div', { class: 'about-name' }, h('h2', {}, 'Max Video AI ', h('span', { class: 'muted' }, 'by Mr. Huỳnh')),
+        h('div', {}, h('span', { class: 'ver' }, 'Phiên bản ' + info.version), h('span', { class: 'slogan' }, APP_INFO.slogan))),
+      h('button', { class: 'icon-btn', title: 'Đóng', onclick: closeModal }, icon('close'))),
     h('div', { class: 'contact-row' }, APP_INFO.contact.map((c) => h('a', { onclick: () => window.fv.open(c.href) },
       h('i', { style: { background: c.color } }, c.icon ? icon(c.icon, 'small') : c.text), c.label))),
-    h('dl', { class: 'kv' },
-      h('dt', {}, 'Giấy phép'), h('dd', {}, 'Miễn phí · không giới hạn'),
-      h('dt', {}, 'Bản quyền'), h('dd', {}, (typeof Lic !== 'undefined' && Lic.view && Lic.view.label) || '—'),
-      h('dt', {}, 'Mã máy'), h('dd', {}, h('code', {}, info.machine)),
+    h('dl', { class: 'kv about-kv' },
+      h('dt', {}, 'Bản quyền'), h('dd', {}, (lv && lv.ok ? lv.label : 'Chưa kích hoạt')),
+      h('dt', {}, 'Mã máy'), h('dd', {}, h('code', {}, info.machine), ' ', h('button', { class: 'icon-btn', title: 'Chép mã máy', onclick: () => copyText(info.machine, 'Đã chép mã máy') }, icon('content_copy', 'small'))),
       h('dt', {}, 'Engine'), h('dd', {}, 'Max AI Engine · MiniMax H3 / VDN-H3')),
-    h('div', { class: 'help', style: { textAlign: 'center' } }, `© ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Powered by MiniMax H3 — mô hình dùng theo giấy phép của từng nhà phát hành.`),
-    h('div', { class: 'foot', style: { justifyContent: 'center' } },
+    h('div', { class: 'about-acts' },
       h('button', { class: 'btn', onclick: () => openLicense() }, icon('workspace_premium'), 'Bản quyền'),
       h('button', { class: 'btn', onclick: () => openTerms() }, icon('gavel'), 'Giấy phép & điều khoản'),
       h('button', { class: 'btn', onclick: () => { closeModal(); navigate('engine'); } }, icon('memory'), 'Engine & mô hình'),
-      h('button', { class: 'btn btn-primary', onclick: () => { closeModal(); checkUpdate(); } }, icon('system_update'), 'Kiểm tra cập nhật'))]);
+      h('button', { class: 'btn btn-primary', onclick: () => { closeModal(); checkUpdate(); } }, icon('system_update'), 'Kiểm tra cập nhật')),
+    h('div', { class: 'help', style: { textAlign: 'center', margin: 0 } }, `© ${APP_INFO.year} ${APP_INFO.owner} (${APP_INFO.author}). Powered by MiniMax H3 — mô hình dùng theo giấy phép của từng nhà phát hành.`)], { wide: true });
+  box.classList.add('about-modal');
 }
 
 /* ---------- Video hướng dẫn theo trang (link do trang quản trị đặt) ---------- */

@@ -27,7 +27,7 @@
     guides: () => call('guides'),
     license: { get: () => call('license:get'), refresh: () => call('license:refresh'), activate: (key) => call('license:activate', { key }),
       plans: () => call('license:plans'), order: (plan) => call('license:order', { plan }), orderStatus: (code) => call('license:orderStatus', { code }) },
-    gpt: { info: () => call('gpt:info'), set: (key, model) => call('gpt:set', { key, model }), test: (key) => call('gpt:test', { key }), run: (task, input) => call('gpt:run', { task, input }), prompt: (task, input) => call('ai:prompt', { task, input }) },
+    gpt: { info: () => call('gpt:info'), set: (key, model) => call('gpt:set', { key, model }), test: (key) => call('gpt:test', { key }), run: (task, input) => call('gpt:run', { task, input }), local: (action, body) => call('pvlm', { action, body }), prompt: (task, input) => call('ai:prompt', { task, input }) },
     engine: {
       status: () => call('engine:status'), pickRoot: () => call('engine:pickRoot'), useDefault: () => call('engine:useDefault'),
       pickModels: () => call('engine:pickModels'), plan: (o) => call('engine:plan', o), install: (o) => call('engine:install', o),

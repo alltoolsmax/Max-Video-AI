@@ -412,7 +412,7 @@ class Engine {
 
   // Tải lần lượt từng gói mô hình còn thiếu (ảnh, phụ đề, AI viết prompt, lồng tiếng…). Gói máy không hỗ trợ thì bỏ qua.
   async autoPacks(onPack) {
-    const ORDER = ['image-qwen', 'subtitle', 'vlm', 'dubbing', 'image-h3', 'segment', 'music'];
+    const ORDER = ['vlm', 'image-qwen', 'subtitle', 'dubbing', 'image-h3', 'segment', 'music'];
     const tried = new Set();
     for (let round = 0; round < 400; round++) {
       if (this.state.phase !== 'running') return;          // người dùng tắt engine → dừng, lần mở sau tải tiếp

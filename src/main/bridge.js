@@ -109,6 +109,36 @@ class Bridge {
     };
   }
 
+  // Mô hình viết prompt của engine: gọi thẳng /freevideo/prompt-vlm (token riêng), không qua Hàng đợi
+  async pvlm(args = {}) {
+    const url = this.engine.url;
+    if (!url) throw Object.assign(new Error('Engine chưa chạy.'), { code: 'engine_off' });
+    const action = String(args.action || 'info');
+    if (!['info', 'rewrite', 'ask', 'status', 'cancel', 'install'].includes(action)) throw new Error('invalid_request');
+    if (!['info', 'status', 'cancel'].includes(action) && !this.license.view().ok) {
+      throw Object.assign(new Error('Cần kích hoạt bản quyền để dùng chức năng này.'), { code: 'no_license' });
+    }
+    const info = async () => {
+      const res = await fetch(url + '/freevideo/prompt-vlm', { signal: AbortSignal.timeout(30000) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw Object.assign(new Error(j.error || 'setup_required'), { code: j.error || 'setup_required' });
+      this.pvlmToken = j.token;
+      return j;
+    };
+    if (action === 'info') { const j = await info(); delete j.token; return j; }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (!this.pvlmToken) await info();
+      const res = await fetch(url + '/freevideo/prompt-vlm/' + action, { method: 'POST',
+        headers: { 'content-type': 'application/json', 'X-FreeVideo-Prompt': this.pvlmToken },
+        body: JSON.stringify(args.body || {}), signal: AbortSignal.timeout(30000) });
+      const j = await res.json().catch(() => ({}));
+      if (res.status === 403 && j.error === 'reload' && attempt === 0) { this.pvlmToken = null; continue; }
+      if (!res.ok) throw Object.assign(new Error(j.error || ('HTTP ' + res.status)), { code: j.error || 'error' });
+      return j;
+    }
+    throw new Error('reload');
+  }
+
   async handle(channel, args = {}) {
     switch (channel) {
       case 'config:get':
@@ -218,6 +248,11 @@ class Bridge {
           }
           return out;
         });
+      case 'pvlm':   // gọi thẳng mô hình viết prompt của engine (không đi qua Hàng đợi)
+        return wrap(() => this.pvlm(args).catch((e) => {
+          if (e instanceof TypeError || e.name === 'TimeoutError') throw Object.assign(new Error('Không kết nối được engine — thử lại sau giây lát.'), { code: 'engine_off' });
+          throw e;
+        }));
       case 'ai:prompt':   // lời nhắn cho mô hình viết prompt trên máy — dùng chung hướng dẫn với ChatGPT
         return { system: AI_SYSTEM[args.task] || '', user: aiUserText(args.task, args.input || {}) };
       case 'gpt:info':

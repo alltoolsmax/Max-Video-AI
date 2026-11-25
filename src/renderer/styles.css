@@ -515,10 +515,25 @@ body.nav-collapsed .guide-btn { justify-content: center; padding: 6px; } body.na
 .tile-check { opacity: .75; }
 .tile-del:hover { background: #ef4444; }
 .tile.sel { box-shadow: 0 0 0 2px var(--accent); border-radius: 14px; }
-.ai-row { display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; }
-.ai-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent2, #8b9eff); }
-.ai-sep { width: 1px; height: 22px; background: var(--border); margin: 0 6px; }
-.local-ai-btn .ms { color: var(--accent2, #8b9eff); }
+.ai-row { display: flex; align-items: stretch; gap: 8px; flex-wrap: nowrap; margin: 6px 0 4px; }
+.ai-pick-wrap { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 30px 0 12px; border-radius: 10px; flex: none;
+  border: 1px solid var(--border-strong); background: var(--panel-solid); cursor: pointer; }
+.ai-pick-wrap > .ms:first-child { color: var(--accent); }
+.ai-row[data-engine='gpt'] .ai-pick-wrap > .ms:first-child { color: #34d399; }
+.ai-pick-wrap > .ms:last-child { position: absolute; right: 8px; pointer-events: none; color: var(--muted); }
+.ai-pick { appearance: none; -webkit-appearance: none; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; outline: none; padding: 0; }
+.ai-pick option { background: var(--panel-solid); color: var(--text); }
+.ai-act { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 16px; border-radius: 10px; flex: 1 1 0; min-width: 0;
+  border: 1px solid transparent; background: var(--grad); color: #fff; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(91, 140, 255, .25); transition: filter .15s, transform .05s; }
+.ai-act + .ai-act { background: var(--accent-soft); color: var(--text); border-color: var(--border-strong); box-shadow: none; }
+.ai-act:hover:not(:disabled) { filter: brightness(1.1); }
+.ai-act:active:not(:disabled) { transform: translateY(1px); }
+.ai-act:disabled { opacity: .75; cursor: progress; }
+.ai-act > span { overflow: hidden; text-overflow: ellipsis; }
+.card-head .ai-row { margin: 0; }
+.card-head .ai-act { flex: none; }
 
 /* Bản quyền */
 .lic-chip { margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text);
@@ -535,3 +550,66 @@ body.nav-collapsed .lic-chip span:not(.ms) { display: none; }
 .plan.big { padding: 18px; cursor: default; gap: 6px; }
 .plan.big .price { font-size: 28px; }
 .plan.big .acts { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+/* Thẻ gói bản quyền */
+.lic-note { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.plans.two { align-items: stretch; }
+.plan.big { padding: 20px 18px 16px; }
+.plan.big .ribbon { top: -11px; left: 16px; right: auto; font-size: 11px; padding: 3px 10px; background: rgba(127, 140, 180, .35); }
+.plan-top { display: flex; align-items: center; gap: 8px; }
+.plan-top b { font-size: 16px; letter-spacing: .5px; }
+.plan-top .ms { color: var(--accent); }
+.plan.big .per { margin-top: -4px; }
+.plan-feats { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.plan-feats li { display: flex; align-items: center; gap: 8px; }
+.plan-feats .ms { color: var(--ok); font-size: 18px; }
+.plan.big .acts { margin-top: auto; padding-top: 10px; }
+.plan.big .acts .btn:first-child { flex: 1; justify-content: center; }
+.plan.big.hot { border: 0; background: linear-gradient(var(--panel-solid), var(--panel-solid)) padding-box, var(--grad) border-box; border: 2px solid transparent;
+  box-shadow: 0 12px 40px rgba(139, 92, 246, .35), 0 0 0 1px rgba(236, 72, 153, .2); }
+.plan.big.hot::before { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(400px 160px at 80% 0%, rgba(236, 72, 153, .18), transparent 70%), radial-gradient(300px 160px at 0% 0%, rgba(91, 140, 255, .14), transparent 70%); }
+.plan.big.hot .ribbon { background: var(--grad); box-shadow: 0 4px 14px rgba(236, 72, 153, .4); }
+.plan.big.hot .plan-top .ms { color: #f472b6; }
+.plan.big.hot .price { font-size: 32px; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.plan.big.hot > *:not(.ribbon) { position: relative; }
+
+/* Popup thanh toán QR (dọc, không cần cuộn) */
+.modal.pay-modal { width: 500px; padding: 18px 22px; gap: 10px; }
+.pay { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.pay-qr { background: #fff; border-radius: 16px; padding: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+.pay-qr img { display: block; width: min(300px, calc(100vh - 490px)); min-width: 190px; aspect-ratio: 1 / 1; object-fit: contain; }
+.pay-amount { font-size: 30px; font-weight: 800; letter-spacing: -.5px; line-height: 1.1; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pay-rows { width: 100%; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.pay-rows > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pay-rows span { color: var(--muted); }
+.pay-rows b { display: inline-flex; align-items: center; gap: 4px; user-select: text; text-align: right; }
+.pay-rows .icon-btn, .pay-code .icon-btn { width: 26px; height: 26px; }
+.pay-code { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; padding: 10px 14px; border-radius: 12px;
+  background: var(--accent-soft); border: 1px dashed var(--accent); }
+.pay-code span { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.pay-code b { font-family: Consolas, 'Cascadia Mono', monospace; font-size: 24px; letter-spacing: 2px; user-select: text; }
+.pay-help { font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.45; }
+.pay-modal .notice { padding: 8px 12px; font-size: 13px; }
+.pay-modal .foot { margin-top: 0; }
+
+/* Bảng thông tin ứng dụng */
+.modal.about-modal { width: 720px; gap: 14px; }
+.about-top { display: flex; align-items: center; gap: 16px; }
+.about-top img { width: 64px; height: 64px; border-radius: 18px; box-shadow: 0 10px 28px rgba(91, 140, 255, .4); flex: none; }
+.about-name { flex: 1; min-width: 0; }
+.about-name h2 { margin: 0 0 4px; font-size: 21px; white-space: nowrap; }
+.about-name h2 .muted { font-size: 14px; font-weight: 500; }
+.about-name .ver { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-right: 8px; }
+.about-name .slogan { font-size: 12.5px; color: var(--muted); }
+.about-top > .icon-btn { align-self: flex-start; flex: none; }
+.about-kv { padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--border); }
+.about-kv dd { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.about-kv code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.about-kv .icon-btn { width: 26px; height: 26px; }
+.about-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.about-acts .btn { justify-content: center; white-space: nowrap; padding-left: 8px; padding-right: 8px; font-size: 13px; }
+.lic-hero { padding: 10px 14px; }
+.lic-hero img { width: 44px; height: 44px; border-radius: 12px; }
+.lic-hero b { font-size: 15px; }
+.lic-hero .row.tight { flex-wrap: nowrap; align-items: center; }
