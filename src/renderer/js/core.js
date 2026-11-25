@@ -45,14 +45,36 @@ async function api(method, route, body) {
   return reply.data;
 }
 
+const ERROR_VI = {
+  unreachable: 'Engine chưa chạy. Vào mục Engine & mô hình và bấm Bật engine.',
+  no_token: 'Engine chưa cài. Vào mục Engine & mô hình để cài.',
+  unauthorized: 'Engine vừa khởi động lại — thử lại sau vài giây.',
+  not_ready: 'Engine chưa sẵn sàng (đang cài hoặc thiếu mô hình).',
+  pack_missing: 'Chưa tải mô hình tạo ảnh. Vào Engine & mô hình → bấm Tải ở "Tạo ảnh nhanh" hoặc "Tạo ảnh chất lượng cao".',
+  model_unavailable: 'Máy này không chạy được mô hình ảnh đã chọn (H3 Image trên Mac). Hãy chọn Qwen Image hoặc "Tự động".',
+  no_memory: 'Không đủ bộ nhớ GPU/RAM cho ảnh này. Thử khung hình nhỏ hơn, độ phân giải Tiêu chuẩn, hoặc tắt bớt ứng dụng khác.',
+  small_memory: 'Máy không đủ bộ nhớ để tạo ảnh.',
+  invalid_dimensions: 'Kích thước ảnh không hợp lệ (256–2048 px).',
+  invalid_prompt: 'Mô tả ảnh phải có chữ và tối đa 2000 ký tự.',
+  too_many_images: 'Tối đa 4 ảnh đầu vào.',
+  busy_video: 'Đang tạo video — ảnh sẽ chạy khi video xong.',
+  busy: 'Đang tạo ảnh khác — ảnh này sẽ chạy tiếp theo.',
+  disk_full: 'Ổ đĩa đầy. Hãy giải phóng dung lượng rồi thử lại.',
+  generation_failed: 'Tạo ảnh không thành công. Thử lại hoặc đổi mô tả.',
+  worker_exit: 'Bộ tạo ảnh bị dừng giữa chừng. Bấm Chạy lại.',
+  out_of_memory: 'Card đồ họa hết bộ nhớ. Giảm chất lượng hoặc thời lượng rồi chạy lại.',
+  no_speech_model: 'Chưa tải mô hình nhận dạng giọng nói cho ngôn ngữ này. Vào Engine & mô hình → tải "Phụ đề tự động".',
+  cancelled: 'Đã huỷ.',
+};
+// Câu gốc của engine có thể nhắc tên dự án nguồn — luôn gọi là Max AI Engine.
+const brandText = (t) => String(t || '').replace(/FreeVideo/g, 'Max AI Engine');
 function errorText(error) {
-  const known = {
-    unreachable: 'Engine chưa chạy. Vào mục Engine & mô hình và bấm Bật engine.',
-    no_token: 'Engine chưa cài. Vào mục Engine & mô hình để cài.',
-    unauthorized: 'Engine vừa khởi động lại — thử lại sau vài giây.',
-    not_ready: 'Engine chưa sẵn sàng (đang cài hoặc thiếu mô hình).',
-  };
-  return known[error && error.code] || (error && error.message) || String(error);
+  const code = error && error.code;
+  if (code && ERROR_VI[code]) return ERROR_VI[code];
+  if (code === 'invalid_request' && /picture/i.test((error && error.message) || '')) {
+    return 'Yêu cầu tạo ảnh không hợp lệ. Nếu có chọn nhân vật: cần gói "Tạo ảnh nhanh" (Qwen Image) và thẻ nhân vật phải có ảnh chính diện.';
+  }
+  return brandText((error && error.message) || String(error));
 }
 
 function toast(message, { kind = 'info', sub, action, timeout = 5000 } = {}) {
@@ -64,7 +86,7 @@ function toast(message, { kind = 'info', sub, action, timeout = 5000 } = {}) {
   setTimeout(() => node.remove(), action ? timeout * 2 : timeout);
 }
 function toastError(error, prefix) {
-  toast((prefix ? prefix + ': ' : '') + errorText(error), { kind: 'err', sub: error && error.next ? error.next : undefined, timeout: 9000 });
+  toast((prefix ? prefix + ': ' : '') + errorText(error), { kind: 'err', sub: error && error.next && !ERROR_VI[error.code] ? brandText(error.next) : undefined, timeout: 9000 });
 }
 
 /* ---------- Định dạng ---------- */

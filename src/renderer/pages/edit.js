@@ -40,6 +40,12 @@ registerPage('edit', (() => {
     right.append(h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Kết quả')), h('div', { class: 'card-body' }, els.result)));
     root.append(page);
     drawSource(); drawTools(); drawResult(); update();
+    window.fv.engine.packs().then((r) => {
+      const list = r.ok ? r.data : [];
+      const ready = (id) => Boolean((list.find((x) => x.id === id) || {}).ready);
+      state.noImageModel = r.ok && !ready('image-h3') && !ready('image-qwen');
+      update();
+    }).catch(() => {});
     App.on('connection', update);
   }
 
@@ -120,8 +126,9 @@ registerPage('edit', (() => {
     if (!App.connected) els.note.append(engineOffNotice());
     else if (!state.source) els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('info'), 'Chọn ảnh cần sửa.'));
     else if (state.mode === 'ai') {
-      ok = ok && Boolean(state.prompt.trim());
-      els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('auto_awesome'), 'AI vẽ lại ảnh theo mô tả, chạy trên card đồ họa của bạn.'));
+      ok = ok && Boolean(state.prompt.trim()) && !state.noImageModel;
+      if (state.noImageModel) els.note.append(packNotice('Sửa bằng AI cần một mô hình tạo ảnh (tải 1 lần). "Chỉnh nhanh" thì không cần.'));
+      else els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('auto_awesome'), 'AI vẽ lại ảnh theo mô tả, chạy trên card đồ họa của bạn.'));
     } else {
       const n = recipe().length;
       ok = ok && n > 0;

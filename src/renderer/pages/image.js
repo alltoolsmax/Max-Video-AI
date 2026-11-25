@@ -53,6 +53,7 @@ registerPage('image', (() => {
         h('div', { class: 'grow' }), icon('expand_more', 'chev')),
       h('div', { class: 'card-body' }, els.people)));
     drawPeople();
+    readImagePacks();
 
     const modelSelect = h('select', { class: 'select', onchange: (e) => { state.model = e.target.value; setPref('imageModel', state.model); update(); } },
       h('option', { value: '' }, 'Tự động (model đã cài)'),
@@ -98,6 +99,17 @@ registerPage('image', (() => {
     }
   }
 
+  // Gói mô hình ảnh đã tải: { h3, qwen }
+  async function readImagePacks() {
+    try {
+      const r = await window.fv.engine.packs();
+      const list = r.ok ? r.data : [];
+      const ready = (id) => Boolean((list.find((x) => x.id === id) || {}).ready);
+      state.packs = { h3: ready('image-h3'), qwen: ready('image-qwen'), known: r.ok };
+    } catch { state.packs = { h3: false, qwen: false, known: false }; }
+    update();
+  }
+
   async function drawPeople() {
     els.people.innerHTML = '';
     let list = [];
@@ -106,8 +118,15 @@ registerPage('image', (() => {
       els.people.append(h('div', { class: 'help' }, 'Chưa có nhân vật. ', h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('cast'); } }, 'Tạo thẻ nhân vật'), ' rồi chọn ở đây (tối đa 3 người).'));
       return;
     }
+    const hasFront = (c) => (c.images || []).some((i) => i.label === 'front');
     els.people.append(h('div', { class: 'cast-pick' }, list.map((c) => {
       const on = state.people.includes(c.id);
+      if (!hasFront(c)) {
+        return h('button', { class: 'cast-chip', type: 'button', style: { opacity: .55 }, title: 'Thẻ này chưa có ảnh chính diện',
+          onclick: () => toast('Thẻ "' + c.name + '" chưa có ảnh chính diện', { kind: 'err', sub: 'Vào trang Nhân vật → bấm "AI vẽ" hoặc thêm ảnh, đặt góc "Chính diện".',
+            action: { label: 'Mở Nhân vật', run: () => navigate('cast') } }) },
+          castPicture(c) ? h('img', { src: mediaUrl(castPicture(c)), alt: '' }) : icon('person'), h('span', {}, c.name + ' · chưa có ảnh'));
+      }
       return h('button', { class: 'cast-chip' + (on ? ' on' : ''), type: 'button', onclick: () => {
         if (on) state.people = state.people.filter((x) => x !== c.id);
         else if (state.people.length < 3) state.people.push(c.id); else { toast('Tối đa 3 nhân vật', { kind: 'err' }); return; }
@@ -119,9 +138,17 @@ registerPage('image', (() => {
   function update() {
     if (!els.btn) return;
     els.tierField.classList.toggle('hidden', state.model === 'qwen-image-2.1-turbo');
-    els.btn.disabled = !state.prompt.trim() || !App.connected;
+    const pk = state.packs || {};
+    const noModel = pk.known && !pk.h3 && !pk.qwen;
+    const peopleNeedQwen = state.people.length && !state.images.length && pk.known && !pk.qwen;
+    els.btn.disabled = !state.prompt.trim() || !App.connected || noModel || peopleNeedQwen;
     els.note.innerHTML = '';
+    const goEngine = h('a', { href: '#', onclick: (e) => { e.preventDefault(); navigate('engine'); } }, 'Mở Engine & mô hình');
     if (!App.connected) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('link_off'), 'Engine chưa chạy.'));
+    else if (noModel) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('deployed_code'),
+      h('div', {}, 'Chưa tải mô hình tạo ảnh. Tải "Tạo ảnh nhanh" (Qwen) hoặc "Tạo ảnh chất lượng cao" (H3 Image) — chỉ cần tải 1 lần. ', goEngine)));
+    else if (peopleNeedQwen) els.note.append(h('div', { class: 'notice err', style: { marginTop: 0 } }, icon('groups'),
+      h('div', {}, 'Ghép nhân vật vào ảnh cần gói "Tạo ảnh nhanh" (Qwen Image). ', goEngine)));
     else els.note.append(h('div', { class: 'notice info', style: { marginTop: 0 } }, icon('info'),
       h('div', {}, state.images.length ? 'Sửa/kết hợp ' + state.images.length + ' ảnh theo mô tả.' : 'Tạo ' + state.count + ' ảnh mới từ mô tả.',
         h('div', { class: 'small-text' }, 'Ảnh chạy sau video nếu GPU đang bận.'))));
@@ -133,7 +160,12 @@ registerPage('image', (() => {
     if (state.model !== 'qwen-image-2.1-turbo') spec.tier = state.tier;
     if (!state.seedRandom) spec.seed = (Number(state.seed) || 0) + seedOffset;
     if (state.images.length) { spec.images = state.images.map((i) => i.file); delete spec.aspect; delete spec.tier; }
-    else if (state.people.length) spec.people = state.people.map((id) => ({ cast: id }));
+    else if (state.people.length) {
+      // Ghép nhân vật chỉ chạy với Qwen Image; khung hình theo kích thước bội số 32, tối đa 2048.
+      spec.people = state.people.map((id) => ({ cast: id }));
+      spec.model = 'qwen-image-2.1-turbo';
+      delete spec.tier;
+    }
     return spec;
   }
 

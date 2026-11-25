@@ -151,7 +151,7 @@ function jobCard(job, { onReuse, onContinue, onUseImage } = {}) {
       }
     } else {
       const err = j.error || {};
-      card.append(h('div', { class: 'notice err' }, icon('error'), h('div', {}, errorText(err), err.next ? h('div', { class: 'small-text' }, err.next) : null)));
+      card.append(h('div', { class: 'notice err' }, icon('error'), h('div', {}, errorText(err), err.next && !ERROR_VI[err.code] && err.code !== 'invalid_request' ? h('div', { class: 'small-text' }, brandText(err.next)) : null)));
       if (j.status === 'interrupted' || j.status === 'failed') {
         card.append(h('div', { class: 'job-actions' }, h('button', { class: 'btn btn-text', onclick: () => resumeJob(j.id) }, icon('restart_alt'), 'Chạy lại')));
       }
